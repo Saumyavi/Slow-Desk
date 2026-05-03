@@ -11,7 +11,7 @@ import TaskModal from '@/components/TaskModal';
 import LandingPage from '@/components/LandingPage';
 
 /* ── Greeting card ─────────────────────────────────────────── */
-function GreetingCard({ tasks, projectCount }: { tasks: Task[]; projectCount: number }) {
+function GreetingCard({ tasks }: { tasks: Task[] }) {
   const { mood, setMood, quote, fireConfetti, user, completions } = useApp();
   const cardRef = useRef<HTMLDivElement>(null);
   const [greeting, setGreeting] = useState('');
@@ -261,12 +261,10 @@ function WeekGantt({ weekOffset }: { weekOffset: number }) {
   });
 
   // tasks by due date
-  const today = weekDays[todayIdx];
   tasks.forEach(t => {
     let colIdx = -1;
     if (t.due === 'today') colIdx = todayIdx;
     else if (t.due === 'tomorrow') colIdx = todayIdx + 1;
-    else if (t.due === 'yesterday') colIdx = todayIdx - 1;
     if (colIdx >= 0 && colIdx < 5) {
       const projColor = TONE_COLORS[t.tone] || 'var(--accent)';
       bars.push({ label: t.title, color: projColor, start: Math.max(0, colIdx - 1), end: colIdx + 1 });
@@ -733,7 +731,7 @@ export default function DashboardPage() {
       />
 
       <div style={{ padding: '0 20px 0', display: 'flex', flexDirection: 'column', gap: 20, marginTop: 20 }}>
-        <GreetingCard tasks={tasks} projectCount={projects.length} />
+        <GreetingCard tasks={tasks} />
 
         {/* main 2-col grid */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: 20, alignItems: 'start' }}>
