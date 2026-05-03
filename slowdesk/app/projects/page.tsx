@@ -201,7 +201,7 @@ function ProjectCard({ project, projectTasks, index, onEdit }: {
       attach: 0,
       due: 'today',
       time: '—',
-      priority: 'normal',
+      priority: 'medium',
     };
     setTasks(prev => [...prev, newT]);
     setNewTask(''); setAddingTask(false);
