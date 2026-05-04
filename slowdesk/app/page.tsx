@@ -51,7 +51,7 @@ function GreetingCard({ tasks }: { tasks: Task[] }) {
       <div className="greeting-scrim" />
 
       {/* left text */}
-      <div style={{ position: 'relative', zIndex: 2, padding: '18px 24px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+      <div className="greeting-inner" style={{ position: 'relative', zIndex: 2, padding: '18px 24px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'rgba(255,255,255,0.65)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 6 }}>
             {dateStr}
@@ -275,7 +275,8 @@ function WeekGantt({ weekOffset }: { weekOffset: number }) {
   const visibleBars = bars.slice(0, 6);
 
   return (
-    <div style={{ position: 'relative' }}>
+    <div className="gantt-scroll">
+    <div style={{ position: 'relative', minWidth: 400 }}>
       {/* column headers */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', marginBottom: 8 }}>
         {weekDays.map((d, i) => {
@@ -347,6 +348,7 @@ function WeekGantt({ weekOffset }: { weekOffset: number }) {
           </div>
         )}
       </div>
+    </div>
     </div>
   );
 }
@@ -734,7 +736,7 @@ export default function DashboardPage() {
         <GreetingCard tasks={tasks} />
 
         {/* main 2-col grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: 20, alignItems: 'start' }}>
+        <div className="dashboard-grid">
 
           {/* ── LEFT col ── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>

@@ -17,6 +17,14 @@ const NAV_ITEMS: { id: string; label: string; icon: IconName; href: string }[] =
   { id: 'notes',     label: 'Notes',     icon: 'notes',     href: '/notes' },
 ];
 
+const BOTTOM_NAV_ITEMS = [
+  { id: 'dashboard', label: 'Home',     icon: 'dashboard' as IconName, href: '/' },
+  { id: 'tasks',     label: 'Tasks',    icon: 'list'      as IconName, href: '/tasks' },
+  { id: 'projects',  label: 'Projects', icon: 'projects'  as IconName, href: '/projects' },
+  { id: 'habits',    label: 'Habits',   icon: 'habits'    as IconName, href: '/habits' },
+  { id: 'notes',     label: 'Notes',    icon: 'notes'     as IconName, href: '/notes' },
+];
+
 export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
@@ -105,5 +113,18 @@ export default function Sidebar() {
         </>
       )}
     </aside>
+
+    {/* ── Mobile bottom navigation ── */}
+    <nav className="bottom-nav">
+      {BOTTOM_NAV_ITEMS.map(item => {
+        const active = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
+        return (
+          <Link key={item.id} href={item.href} className={`bottom-nav-item ${active ? 'active' : ''}`}>
+            <Icon name={item.icon} size={20} />
+            {item.label}
+          </Link>
+        );
+      })}
+    </nav>
   );
 }

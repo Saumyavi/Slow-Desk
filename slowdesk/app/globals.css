@@ -401,3 +401,96 @@ input, textarea { font-family: inherit; }
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
+
+/* ── Responsive dashboard grid ───────────────────────────── */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  gap: 20px;
+  align-items: start;
+}
+
+/* ── Mobile bottom nav ───────────────────────────────────── */
+.bottom-nav {
+  display: none;
+  position: fixed; bottom: 0; left: 0; right: 0;
+  background: var(--bg-elev);
+  border-top: 1px solid var(--line);
+  z-index: 200;
+  align-items: center;
+  justify-content: space-around;
+  padding: 6px 4px;
+  padding-bottom: calc(6px + env(safe-area-inset-bottom));
+  box-shadow: 0 -4px 20px rgba(40,30,20,0.07);
+}
+.bottom-nav-item {
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 6px 10px; border-radius: 10px; flex: 1;
+  color: var(--ink-faint); background: none; border: none; cursor: pointer;
+  font-family: var(--font-mono); font-size: 9px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.06em;
+  transition: color 0.15s;
+  text-decoration: none;
+}
+.bottom-nav-item.active { color: var(--accent); }
+.bottom-nav-item svg { width: 20px; height: 20px; }
+
+/* ── Mobile breakpoint (≤ 768px) ─────────────────────────── */
+@media (max-width: 768px) {
+  /* Layout: hide sidebar, go full-width */
+  .app-shell {
+    grid-template-columns: 1fr;
+  }
+  .sidebar { display: none; }
+  .bottom-nav { display: flex; }
+
+  /* Give main content room above the bottom nav */
+  .main {
+    padding-bottom: calc(68px + env(safe-area-inset-bottom));
+  }
+
+  /* Topbar */
+  .topbar {
+    padding: 14px 16px 12px;
+    gap: 10px;
+  }
+  .page-title { font-size: 22px; }
+  .search-box { display: none; }
+
+  /* Dashboard 2-col → single col */
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Greeting card: stack mood pad below text on small screens */
+  .greeting-inner {
+    flex-direction: column !important;
+    gap: 14px !important;
+  }
+  .mood-pad { align-self: flex-start; margin-left: 0 !important; }
+
+  /* General page padding */
+  .page { padding: 16px 16px 40px; }
+
+  /* Cards */
+  .card { padding: 14px 14px; }
+
+  /* Week gantt: horizontal scroll */
+  .gantt-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+}
+
+/* ── Tablet breakpoint (769px – 1024px) ──────────────────── */
+@media (min-width: 769px) and (max-width: 1024px) {
+  :root { --sidebar-w: 64px; }
+  .app-shell { --sidebar-w: 64px; }
+  .sidebar { padding: 18px 8px; align-items: center; }
+  .sidebar .brand-name,
+  .sidebar .nav-section-label,
+  .sidebar .fav-row { display: none; }
+  .sidebar .nav-item { justify-content: center; padding: 10px; }
+  .sidebar .nav-item .label { display: none; }
+  .sidebar .brand { padding: 6px 0 22px; justify-content: center; }
+  .dashboard-grid { grid-template-columns: 1fr; }
+  .topbar { padding: 14px 20px 12px; }
+  .search-box { width: 180px; }
+}
