@@ -42,6 +42,7 @@ export default function Sidebar() {
   }, []);
 
   return (
+    <>
     <aside className={`sidebar ${isIcon ? 'icon' : ''}`} ref={navRef}>
       <div className="brand">
         <div className="brand-mark">s</div>
@@ -126,5 +127,6 @@ export default function Sidebar() {
         );
       })}
     </nav>
+    </>
   );
 }
