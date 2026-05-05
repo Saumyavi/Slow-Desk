@@ -1,0 +1,5 @@
+# Next.js build output (if accidentally run from repo root)
+.next/
+
+# Claude Code local settings
+.claude/settings.local.json
