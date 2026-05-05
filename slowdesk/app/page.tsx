@@ -11,11 +11,6 @@ import Icon from '@/components/Icon';
 import TaskModal from '@/components/TaskModal';
 import LandingPage from '@/components/LandingPage';
 
-// Make migration utility available in dev
-if (process.env.NODE_ENV === 'development' && typeof window !== 'undefined') {
-  import('@/lib/supabase/migrate-from-localstorage');
-}
-
 /* ── Greeting card ─────────────────────────────────────────── */
 function GreetingCard({ tasks }: { tasks: Task[] }) {
   const { mood, setMood, quote, fireConfetti, user, completions } = useApp();
@@ -488,7 +483,7 @@ function ThisMonth() {
         const counts: Record<string, number> = {};
         let total = 0;
         habits.forEach(h => {
-          (h.history ?? []).forEach(date => {
+          (h.history ?? []).forEach((date: string) => {
             if (date.startsWith(monthKey)) {
               counts[date] = (counts[date] ?? 0) + 1;
               total++;
@@ -669,7 +664,7 @@ export default function DashboardPage() {
   const supabase = createClient();
   const [authUser, setAuthUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const { user, tasks, setTasks, toggleTask, projects } = useApp();
+  const { tasks, setTasks, toggleTask, projects } = useApp();
 
   // All hooks must be at the top before any conditional returns
   const [showAddModal, setShowAddModal] = useState(false);
