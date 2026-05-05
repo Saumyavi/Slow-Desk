@@ -8,6 +8,7 @@ import AuthScreen from './AuthScreen';
 const FEATURES: { icon: IconName; emoji: string; label: string; desc: string; color: string }[] = [
   { icon: 'dashboard', emoji: '🖥️', label: 'Dashboard',      color: '#c1623f', desc: 'Your command center. See today\'s tasks, mood, projects, and activity all in one calm view.' },
   { icon: 'list',      emoji: '📋', label: 'All Tasks',       color: '#7a9e7e', desc: 'Capture and organize everything with priorities, due dates, projects, and drag-to-reorder.' },
+  { icon: 'camera',    emoji: '📸', label: 'Photo to Tasks',  color: '#c9943a', desc: 'Snap a photo of printed task lists or typed notes. OCR extracts them automatically — 100% free.' },
   { icon: 'calendar',  emoji: '📅', label: 'Calendar',        color: '#8b5c75', desc: 'Plan your weeks with a warm color-coded calendar. Add events, set times, write notes.' },
   { icon: 'habits',    emoji: '🌱', label: 'Habit Tracker',   color: '#c9943a', desc: 'Build streaks with a 30-day heatmap. Watch your consistency grow, one day at a time.' },
   { icon: 'projects',  emoji: '📁', label: 'Projects',        color: '#5b8fbf', desc: 'Track multiple projects with subtasks, live progress bars, and portfolio overviews.' },

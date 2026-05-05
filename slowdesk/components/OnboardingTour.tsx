@@ -14,6 +14,11 @@ const STEPS = [
     body: 'Add and manage your to-dos in the Tasks section. Set priorities (high, medium, low) and due dates. Check off tasks to track your progress.',
   },
   {
+    icon: '📸',
+    title: 'Photo to Tasks',
+    body: 'Snap a photo of printed task lists or typed notes and OCR will extract tasks automatically. Works best with clear, printed text. Click "Scan" on the Tasks page to try it — completely free!',
+  },
+  {
     icon: '📁',
     title: 'Projects',
     body: 'Group related work into Projects. Track progress, deadlines, and team members — all in one place.',

@@ -5,9 +5,12 @@ import { useApp } from '@/lib/store';
 import { TONE_COLORS, Task } from '@/lib/data';
 import { createClient } from '@/lib/supabase/client';
 import * as db from '@/lib/supabase/db';
+import { ExtractedTask } from '@/lib/task-parser';
 import Topbar from '@/components/Topbar';
 import Icon from '@/components/Icon';
 import TaskModal from '@/components/TaskModal';
+import CameraCapture from '@/components/CameraCapture';
+import TaskReview from '@/components/TaskReview';
 
 type Filter = 'all' | 'today' | 'upcoming' | 'completed';
 
@@ -189,6 +192,9 @@ export default function TasksPage() {
   const [filterOpen,     setFilterOpen]     = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [showCamera, setShowCamera] = useState(false);
+  const [extractedTasks, setExtractedTasks] = useState<ExtractedTask[]>([]);
+  const [showReview, setShowReview] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const listRef      = useRef<HTMLDivElement>(null);
   const filterBtnRef = useRef<HTMLDivElement>(null);
@@ -252,6 +258,38 @@ export default function TasksPage() {
     }
   }, [userId, setTasks]);
 
+  const handleTasksExtracted = useCallback((tasks: ExtractedTask[]) => {
+    setExtractedTasks(tasks);
+    setShowCamera(false);
+    setShowReview(true);
+  }, []);
+
+  const handleConfirmTasks = useCallback(async (tasksToAdd: ExtractedTask[]) => {
+    if (!userId) return;
+
+    try {
+      for (const task of tasksToAdd) {
+        const newTask = {
+          title: task.title,
+          done: false,
+          project: '',
+          tone: 'terra' as const,
+          attach: 0,
+          due: task.due || 'this week',
+          time: '—',
+          priority: task.priority,
+        };
+        const created = await db.createTask(userId, newTask);
+        setTasks(prev => [created, ...prev]);
+      }
+      setShowReview(false);
+      setExtractedTasks([]);
+    } catch (err) {
+      console.error('Failed to create tasks:', err);
+      alert('Failed to create some tasks. Please try again.');
+    }
+  }, [userId, setTasks]);
+
   const getProjectColor = useCallback((name: string) => {
     const p = projects.find(x => x.name === name);
     return p ? TONE_COLORS[p.tone] : 'var(--accent)';
@@ -293,9 +331,14 @@ export default function TasksPage() {
         title="All tasks"
         subtitle={`${activeCount} active · ${completedCount} completed`}
         action={
-          <button className="btn btn-primary" onClick={() => setShowAddModal(true)}>
-            <Icon name="plus" size={14} /> New task
-          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn btn-secondary" onClick={() => setShowCamera(true)}>
+              <Icon name="camera" size={14} /> Scan
+            </button>
+            <button className="btn btn-primary" onClick={() => setShowAddModal(true)}>
+              <Icon name="plus" size={14} /> New task
+            </button>
+          </div>
         }
       />
 
@@ -509,6 +552,21 @@ export default function TasksPage() {
 
       {showAddModal && <TaskModal onAdd={onAdd} onClose={() => setShowAddModal(false)} />}
       {editingTask  && <TaskModal editTask={editingTask} onEdit={onEditSave} onClose={() => setEditingTask(null)} />}
+
+      {/* Photo-to-task feature */}
+      {showCamera && (
+        <CameraCapture
+          onTasksExtracted={handleTasksExtracted}
+          onClose={() => setShowCamera(false)}
+        />
+      )}
+      {showReview && (
+        <TaskReview
+          tasks={extractedTasks}
+          onConfirm={handleConfirmTasks}
+          onClose={() => setShowReview(false)}
+        />
+      )}
     </div>
   );
 }
