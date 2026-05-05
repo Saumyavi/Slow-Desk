@@ -332,7 +332,7 @@ function FeaturesSection() {
           Built for the way<br /><em style={{ color: 'var(--accent)' }}>humans</em> actually work
         </h2>
         <p style={{ fontSize: 16, color: 'var(--ink-soft)', maxWidth: 480, margin: '0 auto', lineHeight: 1.7 }}>
-          Six carefully designed pages, each a quiet room for a different kind of thinking.
+          Task management, habit tracking, OCR photo-to-text, calendar, notes, and projects — all designed to work together seamlessly.
         </p>
       </div>
 
