@@ -1,9 +1,10 @@
 'use client';
 import { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { gsap } from 'gsap';
-import { useSession } from 'next-auth/react';
+import { createClient } from '@/lib/supabase/client';
 import { useApp } from '@/lib/store';
 import { TONE_COLORS, Task, computeProgress } from '@/lib/data';
+import * as db from '@/lib/supabase/db';
 import Topbar from '@/components/Topbar';
 import DeskScene from '@/components/DeskScene';
 import Icon from '@/components/Icon';
@@ -465,31 +466,36 @@ function ThisMonth() {
   const totalCells   = Math.ceil((firstWeekday + daysInMonth) / 7) * 7;
   const monthKey     = `${year}-${String(month + 1).padStart(2, '0')}`;
 
-  // Read habit history from localStorage (habits page owns this data)
+  // Read habit history from Supabase
   const [dayCounts,    setDayCounts]    = useState<Record<string, number>>({});
   const [totalHabits,  setTotalHabits]  = useState(0);
   const [monthEntries, setMonthEntries] = useState(0);
 
   useEffect(() => {
-    const email = user?.email ?? 'guest';
-    try {
-      const raw = localStorage.getItem(`sd:${email}:habits`);
-      if (!raw) return;
-      const habits: { history: string[] }[] = JSON.parse(raw);
-      setTotalHabits(habits.length);
-      const counts: Record<string, number> = {};
-      let total = 0;
-      habits.forEach(h => {
-        (h.history ?? []).forEach(date => {
-          if (date.startsWith(monthKey)) {
-            counts[date] = (counts[date] ?? 0) + 1;
-            total++;
-          }
+    const supabase = createClient();
+
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) return;
+
+      try {
+        const habits = await db.getHabits(user.id);
+        setTotalHabits(habits.length);
+        const counts: Record<string, number> = {};
+        let total = 0;
+        habits.forEach(h => {
+          (h.history ?? []).forEach((date: string) => {
+            if (date.startsWith(monthKey)) {
+              counts[date] = (counts[date] ?? 0) + 1;
+              total++;
+            }
+          });
         });
-      });
-      setDayCounts(counts);
-      setMonthEntries(total);
-    } catch { /* ignore */ }
+        setDayCounts(counts);
+        setMonthEntries(total);
+      } catch (err) {
+        console.error('Failed to load habits:', err);
+      }
+    });
   }, [user?.email, monthKey]);
 
   useEffect(() => {
@@ -655,11 +661,12 @@ function ActiveProjects() {
 
 /* ── Page ──────────────────────────────────────────────────── */
 export default function DashboardPage() {
-  const { status } = useSession();
+  const supabase = createClient();
+  const [authUser, setAuthUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const { tasks, setTasks, toggleTask, projects } = useApp();
 
-  if (status === 'unauthenticated') return <LandingPage />;
-  if (status === 'loading') return null;
+  // All hooks must be at the top before any conditional returns
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingTask,  setEditingTask]  = useState<Task | null>(null);
   const [dateLabel,    setDateLabel]    = useState('');
@@ -668,6 +675,13 @@ export default function DashboardPage() {
   const [weekOffset,   setWeekOffset]   = useState(0);
   const sortRef = useRef<HTMLDivElement>(null);
   const dragId  = useRef<string | null>(null);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setAuthUser(user);
+      setLoading(false);
+    });
+  }, []);
 
   useEffect(() => {
     setDateLabel(new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric', year: 'numeric' }).toUpperCase());
@@ -700,9 +714,40 @@ export default function DashboardPage() {
     dragId.current = null;
   }, [setTasks]);
 
-  const onAdd    = useCallback((p: Omit<Task,'id'>) => setTasks(prev => [{ ...p, id: `t${Date.now()}` }, ...prev]), [setTasks]);
-  const onEdit   = useCallback((u: Task) => { setTasks(prev => prev.map(t => t.id === u.id ? u : t)); setEditingTask(null); }, [setTasks]);
-  const onDelete = useCallback((id: string) => setTasks(prev => prev.filter(t => t.id !== id)), [setTasks]);
+  const onAdd = useCallback(async (p: Omit<Task,'id'>) => {
+    if (!authUser) return;
+    try {
+      const newTask = await db.createTask(authUser.id, p);
+      setTasks(prev => [{ ...p, id: newTask.id }, ...prev]);
+    } catch (err) {
+      console.error('Failed to create task:', err);
+    }
+  }, [authUser, setTasks]);
+
+  const onEdit = useCallback(async (u: Task) => {
+    if (!authUser) return;
+    try {
+      await db.updateTask(authUser.id, u.id, u);
+      setTasks(prev => prev.map(t => t.id === u.id ? u : t));
+      setEditingTask(null);
+    } catch (err) {
+      console.error('Failed to update task:', err);
+    }
+  }, [authUser, setTasks]);
+
+  const onDelete = useCallback(async (id: string) => {
+    if (!authUser) return;
+    try {
+      await db.deleteTask(authUser.id, id);
+      setTasks(prev => prev.filter(t => t.id !== id));
+    } catch (err) {
+      console.error('Failed to delete task:', err);
+    }
+  }, [authUser, setTasks]);
+
+  // Conditional returns MUST come after ALL hooks
+  if (loading) return null;
+  if (!authUser) return <LandingPage />;
 
   const getProjectColor = (name: string) => {
     const p = projects.find(x => x.name === name);

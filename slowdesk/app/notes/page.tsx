@@ -3,6 +3,8 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { gsap } from 'gsap';
 import { INITIAL_NOTES, TONE_COLORS, Note, Task, relativeTime } from '@/lib/data';
 import { useApp } from '@/lib/store';
+import { createClient } from '@/lib/supabase/client';
+import * as db from '@/lib/supabase/db';
 import Topbar from '@/components/Topbar';
 import Icon from '@/components/Icon';
 import TaskModal from '@/components/TaskModal';
@@ -95,35 +97,75 @@ function NoteItem({ note, active, preview, onClick, onDelete }: {
 
 /* ── Page ────────────────────────────────────────────────── */
 export default function NotesPage() {
+  const supabase = createClient();
   const { tasks, setTasks, projects, fireConfetti, user } = useApp();
   const email = user?.email ?? 'guest';
-  const noteKey = `sd:${email}:notes`;
   const gratKey = `sd:${email}:gratitude`;
 
-  const [notes, setNotes] = useState<Note[]>(() => {
-    if (typeof window === 'undefined') return INITIAL_NOTES;
-    try { const s = localStorage.getItem(`sd:${email}:notes`); return s ? JSON.parse(s) : INITIAL_NOTES; } catch { return INITIAL_NOTES; }
-  });
-  const [activeId, setActiveId] = useState<string>(() => notes[0]?.id ?? '');
-  const [content, setContent] = useState<Record<string, string>>(() => {
-    if (typeof window === 'undefined') return Object.fromEntries(INITIAL_NOTES.map(n => [n.id, n.preview]));
-    try {
-      const s = localStorage.getItem(`sd:${email}:noteContent`);
-      return s ? JSON.parse(s) : Object.fromEntries(notes.map(n => [n.id, n.preview]));
-    } catch { return Object.fromEntries(notes.map(n => [n.id, n.preview])); }
-  });
-  const [saved,          setSaved]          = useState(false);
-  const [gratitude,      setGratitude]      = useState<GratitudeEntry>(() => {
+  const [userId, setUserId] = useState<string | null>(null);
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [activeId, setActiveId] = useState<string>('');
+  const [content, setContent] = useState<Record<string, string>>({});
+  const [saved, setSaved] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [gratitude, setGratitude] = useState<GratitudeEntry>(() => {
     if (typeof window === 'undefined') return { grateful: '', smile: '', remember: '' };
     try { const s = localStorage.getItem(gratKey); return s ? JSON.parse(s) : { grateful: '', smile: '', remember: '' }; } catch { return { grateful: '', smile: '', remember: '' }; }
   });
-  const [gratOpen,       setGratOpen]       = useState(false);
-  const [showAddTask,    setShowAddTask]    = useState(false);
-  const [editingTask,    setEditingTask]    = useState<Task | null>(null);
+  const [gratOpen, setGratOpen] = useState(false);
+  const [showAddTask, setShowAddTask] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
 
-  // Auto-save notes
-  useEffect(() => { localStorage.setItem(noteKey, JSON.stringify(notes)); }, [notes, noteKey]);
-  useEffect(() => { localStorage.setItem(`sd:${email}:noteContent`, JSON.stringify(content)); }, [content, email]);
+  // Load user and notes from Supabase
+  useEffect(() => {
+    let mounted = true;
+
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user || !mounted) return;
+      setUserId(user.id);
+
+      // Load notes from Supabase
+      const notesData = await db.getNotes(user.id);
+      if (!mounted) return;
+
+      if (notesData.length === 0) {
+        // Create initial notes if none exist
+        for (const note of INITIAL_NOTES) {
+          await db.createNote(user.id, note.title, note.preview, note.tone);
+        }
+        const freshNotes = await db.getNotes(user.id);
+        if (!mounted) return;
+
+        setNotes(freshNotes);
+        setActiveId(freshNotes[0]?.id ?? '');
+
+        // Load content for each note
+        const contentMap: Record<string, string> = {};
+        for (const n of freshNotes) {
+          const fullNote = await db.getNote(user.id, n.id);
+          if (fullNote) contentMap[n.id] = fullNote.content || '';
+        }
+        if (mounted) setContent(contentMap);
+      } else {
+        setNotes(notesData);
+        setActiveId(notesData[0]?.id ?? '');
+
+        // Load content for each note
+        const contentMap: Record<string, string> = {};
+        for (const n of notesData) {
+          const fullNote = await db.getNote(user.id, n.id);
+          if (fullNote) contentMap[n.id] = fullNote.content || '';
+        }
+        if (mounted) setContent(contentMap);
+      }
+
+      if (mounted) setLoading(false);
+    });
+
+    return () => { mounted = false; };
+  }, []);
+
+  // Auto-save gratitude to localStorage (gratitude not in Supabase yet)
   useEffect(() => { localStorage.setItem(gratKey, JSON.stringify(gratitude)); }, [gratitude, gratKey]);
 
   const editorRef     = useRef<HTMLTextAreaElement>(null);
@@ -165,37 +207,81 @@ export default function NotesPage() {
     setSaved(false);
   };
 
-  const saveNote = () => {
-    const iso = new Date().toISOString();
-    setNotes(prev => prev.map(n =>
-      n.id === activeId ? { ...n, updated: 'just now', updatedAt: iso, preview: (content[activeId] || '').slice(0, 140) } : n
-    ));
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  const saveNote = async () => {
+    if (!userId || !activeId) return;
+    try {
+      const currentNote = notes.find(n => n.id === activeId);
+      if (!currentNote) return;
+
+      await db.updateNote(userId, activeId, {
+        title: currentNote.title,
+        content: content[activeId] || '',
+        tone: currentNote.tone,
+      });
+
+      const iso = new Date().toISOString();
+      setNotes(prev => prev.map(n =>
+        n.id === activeId ? { ...n, updated: 'just now', updatedAt: iso, preview: (content[activeId] || '').slice(0, 140) } : n
+      ));
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (err) {
+      console.error('Failed to save note:', err);
+    }
   };
 
-  const addNote = () => {
-    const id = `n${Date.now()}`;
-    const newNote: Note = { id, title: 'Untitled note', updated: 'just now', updatedAt: new Date().toISOString(), tone: 'terra', preview: '' };
-    setNotes(prev => [newNote, ...prev]);
-    setContent(prev => ({ ...prev, [id]: '' }));
-    setActiveId(id);
+  const addNote = async () => {
+    if (!userId) return;
+    try {
+      const newNote = await db.createNote(userId, 'Untitled note', '', 'terra');
+      const note: Note = {
+        id: newNote.id,
+        title: 'Untitled note',
+        updated: 'just now',
+        updatedAt: new Date().toISOString(),
+        tone: 'terra',
+        preview: ''
+      };
+      setNotes(prev => [note, ...prev]);
+      setContent(prev => ({ ...prev, [newNote.id]: '' }));
+      setActiveId(newNote.id);
+    } catch (err) {
+      console.error('Failed to create note:', err);
+    }
   };
 
-  const deleteNote = (id: string) => {
-    const remaining = notes.filter(n => n.id !== id);
-    setNotes(remaining);
-    if (activeId === id) setActiveId(remaining[0]?.id ?? '');
+  const deleteNote = async (id: string) => {
+    if (!userId) return;
+    try {
+      await db.deleteNote(userId, id);
+      const remaining = notes.filter(n => n.id !== id);
+      setNotes(remaining);
+      if (activeId === id) setActiveId(remaining[0]?.id ?? '');
+    } catch (err) {
+      console.error('Failed to delete note:', err);
+    }
   };
 
-  const onAddTask = useCallback((partial: Omit<Task, 'id'>) => {
-    setTasks(prev => [{ ...partial, id: `t${Date.now()}` }, ...prev]);
-  }, [setTasks]);
+  const onAddTask = useCallback(async (partial: Omit<Task, 'id'>) => {
+    if (!userId) return;
+    try {
+      const newTask = await db.createTask(userId, partial);
+      setTasks(prev => [{ ...partial, id: newTask.id }, ...prev]);
+    } catch (err) {
+      console.error('Failed to create task:', err);
+    }
+  }, [userId, setTasks]);
 
-  const onEditTask = useCallback((updated: Task) => {
-    setTasks(prev => prev.map(t => t.id === updated.id ? updated : t));
-    setEditingTask(null);
-  }, [setTasks]);
+  const onEditTask = useCallback(async (updated: Task) => {
+    if (!userId) return;
+    try {
+      await db.updateTask(userId, updated.id, updated);
+      setTasks(prev => prev.map(t => t.id === updated.id ? updated : t));
+      setEditingTask(null);
+    } catch (err) {
+      console.error('Failed to update task:', err);
+    }
+  }, [userId, setTasks]);
 
   const wordCount = (content[activeId] || '').trim().split(/\s+/).filter(Boolean).length;
 
@@ -208,6 +294,8 @@ export default function NotesPage() {
     fontSize: 13, color: 'var(--ink)', outline: 'none', fontFamily: 'var(--font-sans)',
     transition: 'border-color 0.15s', resize: 'none', lineHeight: 1.5,
   };
+
+  if (loading) return null;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>

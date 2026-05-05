@@ -3,6 +3,8 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { gsap } from 'gsap';
 import { CalEvent } from '@/lib/data';
 import { useApp } from '@/lib/store';
+import { createClient } from '@/lib/supabase/client';
+import * as db from '@/lib/supabase/db';
 import Topbar from '@/components/Topbar';
 import Icon from '@/components/Icon';
 
@@ -162,14 +164,22 @@ function EventModal({ editEvent, defaultDay, defaultMonth, defaultYear, onSave, 
 
 /* ── Page ─────────────────────────────────────────────────── */
 export default function CalendarPage() {
+  const supabase = createClient();
   const { calendarEvents: events, setCalendarEvents: setEvents } = useApp();
   const [todayDate] = useState(() => new Date());
   const [year,     setYear]     = useState(() => new Date().getFullYear());
   const [month,    setMonth]    = useState(() => new Date().getMonth());
   const [selected, setSelected] = useState<number | null>(() => new Date().getDate());
   const [modal,    setModal]    = useState<{ day: number; event?: CalEvent } | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   const sideRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) setUserId(user.id);
+    });
+  }, []);
 
   useEffect(() => {
     if (!gridRef.current) return;
@@ -206,14 +216,32 @@ export default function CalendarPage() {
   const next    = () => { if (month === 11) { setMonth(0); setYear(y => y + 1); } else setMonth(m => m + 1); };
   const goToday = () => { setMonth(todayDate.getMonth()); setYear(todayDate.getFullYear()); setSelected(todayDate.getDate()); };
 
-  const saveEvent = (ev: CalEvent) => {
-    setEvents(prev => {
-      const idx = prev.findIndex(e => e.id === ev.id);
-      return idx >= 0 ? prev.map(e => e.id === ev.id ? ev : e) : [...prev, ev];
-    });
-    if (ev.month === month && ev.year === year) setSelected(ev.day);
+  const saveEvent = async (ev: CalEvent) => {
+    if (!userId) return;
+    try {
+      const idx = events.findIndex(e => e.id === ev.id);
+      if (idx >= 0) {
+        await db.updateCalendarEvent(userId, ev.id, ev);
+        setEvents(prev => prev.map(e => e.id === ev.id ? ev : e));
+      } else {
+        const newEvent = await db.createCalendarEvent(userId, ev);
+        setEvents(prev => [...prev, { ...ev, id: newEvent.id }]);
+      }
+      if (ev.month === month && ev.year === year) setSelected(ev.day);
+    } catch (err) {
+      console.error('Failed to save event:', err);
+    }
   };
-  const deleteEvent = (id: string) => setEvents(prev => prev.filter(e => e.id !== id));
+
+  const deleteEvent = async (id: string) => {
+    if (!userId) return;
+    try {
+      await db.deleteCalendarEvent(userId, id);
+      setEvents(prev => prev.filter(e => e.id !== id));
+    } catch (err) {
+      console.error('Failed to delete event:', err);
+    }
+  };
 
   const isSelectedToday = selected === todayDate.getDate() && month === todayDate.getMonth() && year === todayDate.getFullYear();
   const selDOW = selected

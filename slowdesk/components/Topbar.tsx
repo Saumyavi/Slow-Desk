@@ -2,7 +2,7 @@
 import { ReactNode, useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { gsap } from 'gsap';
-import { signOut } from 'next-auth/react';
+import { createClient } from '@/lib/supabase/client';
 import Icon, { IconName } from './Icon';
 import { useApp } from '@/lib/store';
 import { HABITS } from '@/lib/data';
@@ -320,7 +320,8 @@ interface TopbarProps {
 export default function Topbar({ title, subtitle, action }: TopbarProps) {
   const { user, notifications } = useApp();
   const handleSignOut = async () => {
-    await signOut({ redirect: false });
+    const supabase = createClient();
+    await supabase.auth.signOut();
     window.location.href = '/';
   };
   const router = useRouter();

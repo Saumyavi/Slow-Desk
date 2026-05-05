@@ -1,15 +1,20 @@
 'use client';
 import { useState, useRef, useEffect } from 'react';
 import { gsap } from 'gsap';
-import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
+import { createUserProfile } from '@/lib/supabase/db';
 import Icon from './Icon';
 
-function Field({ label, type, value, onChange, placeholder, error }: {
+function Field({ label, type, value, onChange, placeholder, error, showPassword, onTogglePassword }: {
   label: string; type: string; value: string;
   onChange: (v: string) => void; placeholder: string; error?: string;
+  showPassword?: boolean; onTogglePassword?: () => void;
 }) {
   const [focused, setFocused] = useState(false);
+  const isPassword = type === 'password';
+  const inputType = isPassword ? (showPassword ? 'text' : 'password') : type;
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       <label style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--ink-faint)' }}>{label}</label>
@@ -18,16 +23,48 @@ function Field({ label, type, value, onChange, placeholder, error }: {
           <Icon name={type === 'email' ? 'mail' : type === 'password' ? 'lock' : 'user'} size={14} />
         </div>
         <input
-          type={type} value={value} onChange={e => onChange(e.target.value)}
+          type={inputType} value={value} onChange={e => onChange(e.target.value)}
           placeholder={placeholder}
           onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
           style={{
-            width: '100%', padding: '11px 12px 11px 38px', borderRadius: 10, boxSizing: 'border-box',
+            width: '100%', padding: '11px 12px 11px 38px', paddingRight: isPassword ? '38px' : '12px', borderRadius: 10, boxSizing: 'border-box',
             border: `1.5px solid ${error ? '#e05c3c' : focused ? 'var(--accent)' : 'var(--line)'}`,
             background: 'var(--bg)', fontSize: 13, color: 'var(--ink)',
             outline: 'none', fontFamily: 'var(--font-sans)', transition: 'border-color 0.15s',
           }}
         />
+        {isPassword && onTogglePassword && (
+          <button
+            type="button"
+            onClick={onTogglePassword}
+            style={{
+              position: 'absolute',
+              right: 10,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              padding: 4,
+              display: 'flex',
+              alignItems: 'center',
+              color: 'var(--ink-faint)',
+            }}
+            title={showPassword ? 'Hide password' : 'Show password'}
+          >
+            {showPassword ? (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+                <line x1="1" y1="1" x2="23" y2="23"/>
+              </svg>
+            ) : (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                <circle cx="12" cy="12" r="3"/>
+              </svg>
+            )}
+          </button>
+        )}
       </div>
       {error && <span style={{ fontSize: 11, color: '#e05c3c', fontFamily: 'var(--font-mono)' }}>{error}</span>}
     </div>
@@ -40,6 +77,7 @@ export default function AuthScreen({ onClose }: { onClose?: () => void } = {}) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
@@ -74,30 +112,78 @@ export default function AuthScreen({ onClose }: { onClose?: () => void } = {}) {
   const submit = async () => {
     if (!validate() || loading) return;
     setLoading(true);
+    const supabase = createClient();
+
     try {
       if (tab === 'signup') {
-        const res = await fetch('/api/register', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: name.trim(), email, password }),
+        // Sign up with Supabase
+        const { data, error: signUpError } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            emailRedirectTo: `${window.location.origin}/auth/callback`,
+            data: {
+              name: name.trim(),
+            }
+          },
         });
-        const data = await res.json();
-        if (!res.ok) { setErrors({ email: data.error }); setLoading(false); return; }
-      }
-      const result = await signIn('credentials', { email, password, redirect: false });
-      if (result?.error) {
-        setErrors({ password: 'Invalid email or password' });
-        setLoading(false);
-      } else {
+
+        if (signUpError) {
+          setErrors({ email: signUpError.message });
+          setLoading(false);
+          return;
+        }
+
+        // Check if email confirmation is required
+        if (data.user && !data.session) {
+          setErrors({ email: 'Please check your email to confirm your account before signing in.' });
+          setLoading(false);
+          return;
+        }
+
+        // Create user profile
+        if (data.user) {
+          try {
+            await createUserProfile(data.user.id, name.trim(), email);
+          } catch (err) {
+            console.error('Profile creation error:', err);
+          }
+        }
+
         router.refresh();
+        if (onClose) onClose();
+      } else {
+        // Sign in with Supabase
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+
+        if (signInError) {
+          setErrors({ password: signInError.message });
+          setLoading(false);
+          return;
+        }
+
+        router.refresh();
+        if (onClose) onClose();
       }
-    } catch {
-      setErrors({ email: 'Something went wrong. Please try again.' });
+    } catch (err: any) {
+      setErrors({ email: err.message || 'Something went wrong. Please try again.' });
       setLoading(false);
     }
   };
 
-  const handleGoogle = () => signIn('google', { callbackUrl: '/' });
+  const handleGoogle = async () => {
+    const supabase = createClient();
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
+    if (error) setErrors({ email: error.message });
+  };
 
   const QUOTES = [
     'A good workspace makes good work.',
@@ -229,7 +315,7 @@ export default function AuthScreen({ onClose }: { onClose?: () => void } = {}) {
               <Field label="Email" type="email" value={email} onChange={setEmail} placeholder="you@example.com" error={errors.email} />
             </div>
             <div data-field>
-              <Field label="Password" type="password" value={password} onChange={setPassword} placeholder="••••••••" error={errors.password} />
+              <Field label="Password" type="password" value={password} onChange={setPassword} placeholder="••••••••" error={errors.password} showPassword={showPassword} onTogglePassword={() => setShowPassword(!showPassword)} />
             </div>
 
             <div data-field style={{ marginTop: 4 }}>
