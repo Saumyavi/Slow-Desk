@@ -1,32 +1,22 @@
 import { NextResponse } from 'next/server';
 import { Resend } from 'resend';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
-import { createClient } from '@/lib/supabase/server';
 import { getWeeklyRetrospectiveEmail } from '@/lib/emails/weekly-retrospective';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 export async function GET(request: Request) {
+  const resend = new Resend(process.env.RESEND_API_KEY);
   try {
-    // Verify this is a cron request (security)
     const authHeader = request.headers.get('authorization');
     if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Create admin client with service role key
     const supabaseAdmin = createSupabaseClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false
-        }
-      }
+      { auth: { autoRefreshToken: false, persistSession: false } }
     );
 
-    // Get all users
     const { data: users, error: usersError } = await supabaseAdmin.auth.admin.listUsers();
 
     if (usersError || !users) {
@@ -35,15 +25,15 @@ export async function GET(request: Request) {
 
     const results = [];
 
-    // Send retrospective email to each user
     for (const user of users.users) {
+      if (!user.email) continue;
       try {
-        const retrospectiveData = await generateRetrospectiveData(user.id);
+        const retrospectiveData = await generateRetrospectiveData(supabaseAdmin, user.id, user.email);
         const emailHtml = getWeeklyRetrospectiveEmail(retrospectiveData);
 
         await resend.emails.send({
           from: 'SlowDesk <weekly@slowdesk.app>',
-          to: user.email!,
+          to: user.email,
           subject: retrospectiveData.isAllComplete
             ? '🎉 You crushed it this week! Your weekly recap'
             : '📊 Your weekly retrospective is here!',
@@ -57,56 +47,48 @@ export async function GET(request: Request) {
       }
     }
 
-    return NextResponse.json({
-      success: true,
-      totalUsers: users.users.length,
-      results
-    });
+    return NextResponse.json({ success: true, totalUsers: users.users.length, results });
   } catch (error) {
     console.error('Retrospective cron error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
-async function generateRetrospectiveData(userId: string) {
-  const supabase = await createClient();
-
-  // Calculate date range: last 7 days (this past week)
+async function generateRetrospectiveData(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabaseAdmin: any,
+  userId: string,
+  userEmail: string,
+) {
   const today = new Date();
   const weekAgo = new Date(today);
   weekAgo.setDate(today.getDate() - 7);
-
   const weekAgoStr = weekAgo.toISOString();
-  const todayStr = today.toISOString();
 
-  // Fetch tasks from the past week
-  const { data: allTasks } = await supabase
+  const { data: allTasks } = await supabaseAdmin
     .from('tasks')
-    .select('*')
+    .select('title, done, projects(name)')
     .eq('user_id', userId)
     .or(`created_at.gte.${weekAgoStr},updated_at.gte.${weekAgoStr}`);
 
-  const completedTasks = (allTasks || []).filter(t => t.completed);
-  const pendingTasks = (allTasks || []).filter(t => !t.completed);
+  const completedTasks = (allTasks || []).filter((t: any) => t.done);
+  const pendingTasks = (allTasks || []).filter((t: any) => !t.done);
 
-  // Find tasks that were never completed (created more than a week ago but still pending)
-  const { data: oldPendingTasks } = await supabase
+  const { data: oldPendingTasks } = await supabaseAdmin
     .from('tasks')
-    .select('*')
+    .select('title')
     .eq('user_id', userId)
-    .eq('completed', false)
+    .eq('done', false)
     .lt('created_at', weekAgoStr);
 
-  // Fetch habits data from the past week
-  const { data: habits } = await supabase
+  const { data: habits } = await supabaseAdmin
     .from('habits')
-    .select('*')
+    .select('name, habit_history(completed_date)')
     .eq('user_id', userId);
 
-  // Analyze habit completion
-  const habitStats = (habits || []).map(habit => {
-    const completedDays = Object.keys(habit.completed_dates || {}).filter(date => {
-      const d = new Date(date);
+  const habitStats = (habits || []).map((habit: any) => {
+    const completedDays = (habit.habit_history || []).filter((h: any) => {
+      const d = new Date(h.completed_date);
       return d >= weekAgo && d <= today;
     }).length;
 
@@ -118,32 +100,26 @@ async function generateRetrospectiveData(userId: string) {
     };
   });
 
-  // Find struggling habits (< 50% completion)
-  const strugglingHabits = habitStats.filter(h => h.percentage < 50);
+  const strugglingHabits = habitStats.filter((h: any) => h.percentage < 50);
 
-  // Fetch projects
-  const { data: projects } = await supabase
+  const { data: projects } = await supabaseAdmin
     .from('projects')
-    .select('*')
+    .select('status')
     .eq('user_id', userId);
 
-  const activeProjects = (projects || []).filter(p => p.status === 'active').length;
+  const activeProjects = (projects || []).filter((p: any) => p.status === 'active').length;
 
-  // Generate insights
-  const insights = [];
-
+  const insights: string[] = [];
   if (completedTasks.length > 10) {
-    insights.push('You\'re on fire! 🔥 Over 10 tasks completed this week.');
+    insights.push("You're on fire! 🔥 Over 10 tasks completed this week.");
   } else if (completedTasks.length > 5) {
     insights.push('Solid week! You completed a good number of tasks.');
   } else if (completedTasks.length === 0) {
-    insights.push('Looks like you took it slow this week. That\'s okay too!');
+    insights.push("Looks like you took it slow this week. That's okay too!");
   }
-
   if (strugglingHabits.length > 0) {
     insights.push(`Having trouble with ${strugglingHabits[0].name}? Try making it easier or more enjoyable.`);
   }
-
   if (oldPendingTasks && oldPendingTasks.length > 3) {
     insights.push('You have some tasks that have been waiting for a while. Time to tackle them or let them go?');
   }
@@ -151,11 +127,14 @@ async function generateRetrospectiveData(userId: string) {
   const isAllComplete = completedTasks.length > 0 && pendingTasks.length === 0 && strugglingHabits.length === 0;
 
   return {
-    userName: userId, // We'll use user metadata if available
+    userName: userEmail.split('@')[0],
     completedTasksCount: completedTasks.length,
     pendingTasksCount: pendingTasks.length,
-    completedTasks: completedTasks.slice(0, 10), // Top 10
-    avoidedTasks: (oldPendingTasks || []).slice(0, 5), // Top 5 oldest
+    completedTasks: completedTasks.slice(0, 10).map((t: any) => ({
+      title: t.title,
+      project: (t.projects as any)?.name || '',
+    })),
+    avoidedTasks: (oldPendingTasks || []).slice(0, 5),
     habitStats,
     strugglingHabits,
     activeProjects,
