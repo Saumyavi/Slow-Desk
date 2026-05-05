@@ -279,14 +279,11 @@ export default function TasksPage() {
           time: '—',
           priority: task.priority,
         };
-        await db.createTask(userId, newTask);
-        setTasks(prev => [{ ...newTask, id: `t${Date.now()}-${Math.random()}` }, ...prev]);
+        const created = await db.createTask(userId, newTask);
+        setTasks(prev => [created, ...prev]);
       }
       setShowReview(false);
       setExtractedTasks([]);
-
-      // Show success feedback (optional)
-      // Could add a toast notification here
     } catch (err) {
       console.error('Failed to create tasks:', err);
       alert('Failed to create some tasks. Please try again.');
