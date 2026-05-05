@@ -2,6 +2,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { gsap } from 'gsap';
 import { HABITS as SEED_HABITS } from '@/lib/data';
+import { createClient } from '@/lib/supabase/client';
+import * as db from '@/lib/supabase/db';
 import Topbar from '@/components/Topbar';
 import Icon from '@/components/Icon';
 import { useApp } from '@/lib/store';
@@ -377,19 +379,44 @@ function HabitRow({ habit, onToggleToday, onEdit }: {
 
 /* ── Page ────────────────────────────────────────────────── */
 export default function HabitsPage() {
+  const supabase = createClient();
   const { user } = useApp();
-  const email = user?.email ?? 'guest';
-  const habitKey = `sd:${email}:habits`;
 
-  const [habits, setHabits] = useState<HabitData[]>(() => {
-    if (typeof window === 'undefined') return initHabits();
-    try { const s = localStorage.getItem(`sd:${email}:habits`); return s ? JSON.parse(s) : initHabits(); } catch { return initHabits(); }
-  });
-  const [modal,  setModal]  = useState<{ habit?: HabitData } | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [habits, setHabits] = useState<HabitData[]>([]);
+  const [modal, setModal] = useState<{ habit?: HabitData } | null>(null);
+  const [loading, setLoading] = useState(true);
   const headerRef = useRef<HTMLDivElement>(null);
 
-  // Auto-save habits
-  useEffect(() => { localStorage.setItem(habitKey, JSON.stringify(habits)); }, [habits, habitKey]);
+  // Load user and habits from Supabase
+  useEffect(() => {
+    let mounted = true;
+
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user || !mounted) return;
+      setUserId(user.id);
+
+      // Load habits from Supabase
+      const habitsData = await db.getHabits(user.id);
+      if (!mounted) return;
+
+      if (habitsData.length === 0) {
+        // Create initial habits if none exist
+        const initialHabits = initHabits();
+        for (const habit of initialHabits) {
+          await db.createHabit(user.id, habit);
+        }
+        const freshHabits = await db.getHabits(user.id);
+        if (mounted) setHabits(freshHabits);
+      } else {
+        setHabits(habitsData);
+      }
+
+      if (mounted) setLoading(false);
+    });
+
+    return () => { mounted = false; };
+  }, []);
 
   useEffect(() => {
     if (!headerRef.current) return;
@@ -399,24 +426,50 @@ export default function HabitsPage() {
     );
   }, []);
 
-  const onToggleToday = (id: string) => {
-    setHabits(prev => prev.map(h => {
-      if (h.id !== id) return h;
-      const set = new Set(h.history);
-      set.has(TODAY) ? set.delete(TODAY) : set.add(TODAY);
-      return { ...h, history: [...set] };
-    }));
-  };
+  const onToggleToday = async (id: string) => {
+    if (!userId) return;
 
-  const saveHabit = (data: Omit<HabitData, 'id' | 'history'>, editId?: string) => {
-    if (editId) {
-      setHabits(prev => prev.map(h => h.id === editId ? { ...h, ...data } : h));
-    } else {
-      setHabits(prev => [...prev, { id: `h${Date.now()}`, history: [], ...data }]);
+    try {
+      await db.toggleHabitDate(id, TODAY);
+
+      // Update local state
+      setHabits(prev => prev.map(h => {
+        if (h.id !== id) return h;
+        const set = new Set(h.history);
+        set.has(TODAY) ? set.delete(TODAY) : set.add(TODAY);
+        return { ...h, history: [...set] };
+      }));
+    } catch (err) {
+      console.error('Failed to toggle habit:', err);
     }
   };
 
-  const deleteHabit = (id: string) => setHabits(prev => prev.filter(h => h.id !== id));
+  const saveHabit = async (data: Omit<HabitData, 'id' | 'history'>, editId?: string) => {
+    if (!userId) return;
+
+    try {
+      if (editId) {
+        await db.updateHabit(userId, editId, data);
+        setHabits(prev => prev.map(h => h.id === editId ? { ...h, ...data } : h));
+      } else {
+        const newHabit = await db.createHabit(userId, { ...data, history: [] });
+        setHabits(prev => [...prev, { id: newHabit.id, history: [], ...data }]);
+      }
+    } catch (err) {
+      console.error('Failed to save habit:', err);
+    }
+  };
+
+  const deleteHabit = async (id: string) => {
+    if (!userId) return;
+
+    try {
+      await db.deleteHabit(userId, id);
+      setHabits(prev => prev.filter(h => h.id !== id));
+    } catch (err) {
+      console.error('Failed to delete habit:', err);
+    }
+  };
 
   const doneCount = habits.filter(h => new Set(h.history).has(TODAY)).length;
   const pct = habits.length === 0 ? 0 : Math.round((doneCount / habits.length) * 100);
@@ -424,6 +477,8 @@ export default function HabitsPage() {
   const streakRanking = [...habits]
     .map(h => ({ ...h, streak: computeStreak(new Set(h.history)) }))
     .sort((a, b) => b.streak - a.streak);
+
+  if (loading) return null;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20, paddingBottom: 40 }}>

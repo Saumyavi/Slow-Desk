@@ -4,7 +4,9 @@
       "Bash(npm config *)",
       "Bash(npx --registry https://registry.npmjs.org create-next-app@latest slowdesk --typescript --tailwind --eslint --app --no-src-dir --import-alias \"@/*\" --yes)",
       "Bash(npm install *)",
-      "Bash(npm ls *)"
+      "Bash(npm ls *)",
+      "Bash(rm:*)",
+      "Bash(grep -E \"\\\\.tsx$\")"
     ]
   }
 }

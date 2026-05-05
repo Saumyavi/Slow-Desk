@@ -3,6 +3,8 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { gsap } from 'gsap';
 import { useApp } from '@/lib/store';
 import { TONE_COLORS, Task } from '@/lib/data';
+import { createClient } from '@/lib/supabase/client';
+import * as db from '@/lib/supabase/db';
 import Topbar from '@/components/Topbar';
 import Icon from '@/components/Icon';
 import TaskModal from '@/components/TaskModal';
@@ -179,6 +181,7 @@ function TaskItem({ task, projectColor, onToggle, onEdit, onDelete }: {
 
 /* ── Page ──────────────────────────────────────────────── */
 export default function TasksPage() {
+  const supabase = createClient();
   const { tasks, setTasks, projects, toggleTask } = useApp();
   const [filter,         setFilter]         = useState<Filter>('all');
   const [priorityFilter, setPriorityFilter] = useState<'all' | 'high'>('all');
@@ -186,8 +189,15 @@ export default function TasksPage() {
   const [filterOpen,     setFilterOpen]     = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
   const listRef      = useRef<HTMLDivElement>(null);
   const filterBtnRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) setUserId(user.id);
+    });
+  }, []);
 
   useEffect(() => {
     if (!filterOpen) return;
@@ -211,18 +221,36 @@ export default function TasksPage() {
     toggleTask(id);
   }, [toggleTask]);
 
-  const onDelete = useCallback((id: string) => {
-    setTasks(prev => prev.filter(x => x.id !== id));
-  }, [setTasks]);
+  const onDelete = useCallback(async (id: string) => {
+    if (!userId) return;
+    try {
+      await db.deleteTask(userId, id);
+      setTasks(prev => prev.filter(x => x.id !== id));
+    } catch (err) {
+      console.error('Failed to delete task:', err);
+    }
+  }, [userId, setTasks]);
 
-  const onAdd = useCallback((partial: Omit<Task, 'id'>) => {
-    setTasks(prev => [{ ...partial, id: `t${Date.now()}` }, ...prev]);
-  }, [setTasks]);
+  const onAdd = useCallback(async (partial: Omit<Task, 'id'>) => {
+    if (!userId) return;
+    try {
+      const newTask = await db.createTask(userId, partial);
+      setTasks(prev => [{ ...partial, id: newTask.id }, ...prev]);
+    } catch (err) {
+      console.error('Failed to create task:', err);
+    }
+  }, [userId, setTasks]);
 
-  const onEditSave = useCallback((updated: Task) => {
-    setTasks(prev => prev.map(t => t.id === updated.id ? updated : t));
-    setEditingTask(null);
-  }, [setTasks]);
+  const onEditSave = useCallback(async (updated: Task) => {
+    if (!userId) return;
+    try {
+      await db.updateTask(userId, updated.id, updated);
+      setTasks(prev => prev.map(t => t.id === updated.id ? updated : t));
+      setEditingTask(null);
+    } catch (err) {
+      console.error('Failed to update task:', err);
+    }
+  }, [userId, setTasks]);
 
   const getProjectColor = useCallback((name: string) => {
     const p = projects.find(x => x.name === name);

@@ -1,13 +1,14 @@
 'use client';
 import { useState, useRef, useEffect } from 'react';
 import { gsap } from 'gsap';
-import { signOut } from 'next-auth/react';
+import { createClient } from '@/lib/supabase/client';
 import { useApp, Accent } from '@/lib/store';
 import Topbar from '@/components/Topbar';
 import Icon from '@/components/Icon';
 
 const handleSignOut = async () => {
-  await signOut({ redirect: false });
+  const supabase = createClient();
+  await supabase.auth.signOut();
   window.location.href = '/';
 };
 

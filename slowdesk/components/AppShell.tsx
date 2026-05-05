@@ -1,37 +1,56 @@
 'use client';
-import { useEffect } from 'react';
-import { useSession } from 'next-auth/react';
+import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useApp } from '@/lib/store';
+import { createClient } from '@/lib/supabase/client';
 import Sidebar from './Sidebar';
 import TweaksPanel from './TweaksPanel';
 import Confetti from './Confetti';
 import OnboardingTour from './OnboardingTour';
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
-  const { data: session, status } = useSession();
+  const supabase = createClient();
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const { sidebar, confettiTrigger, setUserEmail, tourDone } = useApp();
   const router = useRouter();
   const pathname = usePathname();
 
   // / is public — the page itself shows landing or dashboard based on auth
-  // /login kept for OAuth callbacks
-  const isPublic = pathname === '/login' || pathname === '/';
+  const isPublic = pathname === '/';
 
   useEffect(() => {
-    if (!isPublic && status === 'unauthenticated') router.replace('/');
-  }, [status, router, isPublic]);
+    // Check current session
+    supabase.auth.getUser().then(({ data: { user }, error }) => {
+      if (error) console.error('Auth error:', error);
+      setUser(user);
+      setLoading(false);
+
+      // Set user email in store
+      if (user?.email) {
+        setUserEmail(user.email, user.user_metadata?.name);
+      }
+    });
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      if (session?.user?.email) {
+        setUserEmail(session.user.email, session.user.user_metadata?.name);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   useEffect(() => {
-    if (status === 'authenticated' && session?.user?.email) {
-      setUserEmail(session.user.email, session.user.name ?? undefined);
-    }
-  }, [status, session?.user?.email]);
+    if (!isPublic && !loading && !user) router.replace('/');
+  }, [user, loading, router, isPublic]);
 
   // Public pages render without the app shell
-  if (isPublic && status !== 'authenticated') return <>{children}</>;
+  if (isPublic && !user) return <>{children}</>;
 
-  if (status === 'loading') {
+  if (loading) {
     return (
       <div style={{
         minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -44,7 +63,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (status === 'unauthenticated') return null;
+  if (!user) return null;
 
   return (
     <div className="app-shell" data-sidebar={sidebar}>

@@ -3,6 +3,8 @@ import { useState, useRef, useEffect } from 'react';
 import { gsap } from 'gsap';
 import { TONE_COLORS, Tone, ProjectData, Task, computeProgress } from '@/lib/data';
 import { useApp } from '@/lib/store';
+import { createClient } from '@/lib/supabase/client';
+import * as db from '@/lib/supabase/db';
 import Topbar from '@/components/Topbar';
 import Icon from '@/components/Icon';
 
@@ -342,9 +344,17 @@ function ProjectCard({ project, projectTasks, index, onEdit }: {
 
 /* ── Page ────────────────────────────────────────────────── */
 export default function ProjectsPage() {
+  const supabase = createClient();
   const { projects, setProjects, tasks } = useApp();
   const [modal, setModal] = useState<{ project?: ProjectData } | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
   const statsRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) setUserId(user.id);
+    });
+  }, []);
 
   useEffect(() => {
     if (!statsRef.current) return;
@@ -354,16 +364,29 @@ export default function ProjectsPage() {
     );
   }, []);
 
-  const saveProject = (data: Omit<ProjectData, 'id'>, editId?: string) => {
-    if (editId) {
-      setProjects(prev => prev.map(p => p.id === editId ? { ...p, ...data } : p));
-    } else {
-      setProjects(prev => [...prev, { id: `p${Date.now()}`, ...data }]);
+  const saveProject = async (data: Omit<ProjectData, 'id'>, editId?: string) => {
+    if (!userId) return;
+    try {
+      if (editId) {
+        await db.updateProject(userId, editId, data);
+        setProjects(prev => prev.map(p => p.id === editId ? { ...p, ...data } : p));
+      } else {
+        const newProject = await db.createProject(userId, data);
+        setProjects(prev => [...prev, { id: newProject.id, ...data }]);
+      }
+    } catch (err) {
+      console.error('Failed to save project:', err);
     }
   };
 
-  const deleteProject = (id: string) => {
-    setProjects(prev => prev.filter(p => p.id !== id));
+  const deleteProject = async (id: string) => {
+    if (!userId) return;
+    try {
+      await db.deleteProject(userId, id);
+      setProjects(prev => prev.filter(p => p.id !== id));
+    } catch (err) {
+      console.error('Failed to delete project:', err);
+    }
   };
 
   const getProjectTasks = (projectName: string) => tasks.filter(t => t.project === projectName);
