@@ -3,6 +3,10 @@
     {
       "path": "/api/retrospective",
       "schedule": "0 18 * * 0"
+    },
+    {
+      "path": "/api/notifications/morning-digest",
+      "schedule": "0 * * * *"
     }
   ]
 }

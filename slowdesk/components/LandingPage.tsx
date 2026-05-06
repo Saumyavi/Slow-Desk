@@ -453,6 +453,54 @@ function Features() {
           </div>
         </div>
 
+        {/* Morning Ritual — wide */}
+        <div className="ld-feat" style={{ ...card({ flexDirection: 'row', alignItems: 'center', gap: 32 }), gridColumn: 'span 12', minHeight: 150, background: 'linear-gradient(135deg, #fdf3ee 0%, #f5e8de 100%)' }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ width: 34, height: 34, borderRadius: 10, background: 'rgba(193,98,63,0.15)', display: 'grid', placeItems: 'center', marginBottom: 12 }}>
+              <span style={{ fontSize: 18 }}>☕</span>
+            </div>
+            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 21, letterSpacing: '-0.015em', margin: '0 0 7px', fontWeight: 400 }}>Your <em style={{ color: 'var(--accent)', fontStyle: 'italic' }}>morning ritual</em>, delivered.</h3>
+            <p style={{ color: 'var(--ink-soft)', fontSize: 13, maxWidth: 380, lineHeight: 1.65, margin: 0 }}>
+              Opt in to a calm summary of today's pending tasks, sent to your inbox or WhatsApp — exactly when your day starts.
+            </p>
+          </div>
+          {/* Preview: email + whatsapp mockups */}
+          <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, alignSelf: 'stretch', padding: '4px 0' }}>
+            {/* Email preview */}
+            <div style={{ background: '#fff', borderRadius: 10, padding: '12px 13px', border: '1px solid var(--line)', display: 'flex', flexDirection: 'column', gap: 7 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                <div style={{ width: 18, height: 18, borderRadius: 5, background: 'var(--accent-soft)', display: 'grid', placeItems: 'center', flexShrink: 0 }}>
+                  <span style={{ fontSize: 10 }}>✉</span>
+                </div>
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--ink-faint)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Email · 8:00 AM</span>
+              </div>
+              <div style={{ fontFamily: 'var(--font-display)', fontSize: 12, color: 'var(--ink)', lineHeight: 1.3, marginBottom: 2 }}>Good morning ☕</div>
+              {['Sketch hero variants', 'Export pebble icons', 'Write devlog · week 14'].map((t, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <div style={{ width: 9, height: 9, borderRadius: 3, border: '1px solid var(--line)', flexShrink: 0 }} />
+                  <span style={{ fontSize: 10, color: 'var(--ink-soft)' }}>{t}</span>
+                </div>
+              ))}
+            </div>
+            {/* WhatsApp preview */}
+            <div style={{ background: '#e9fbe5', borderRadius: 10, padding: '12px 13px', border: '1px solid rgba(74,180,80,0.2)', display: 'flex', flexDirection: 'column', gap: 5 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                <div style={{ width: 18, height: 18, borderRadius: 5, background: 'rgba(74,180,80,0.18)', display: 'grid', placeItems: 'center', flexShrink: 0 }}>
+                  <span style={{ fontSize: 10 }}>💬</span>
+                </div>
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#4a7a4e', textTransform: 'uppercase', letterSpacing: '0.08em' }}>WhatsApp</span>
+              </div>
+              <p style={{ fontSize: 10.5, color: '#2c2416', lineHeight: 1.55, margin: 0, fontFamily: 'var(--font-sans)' }}>
+                ☕ <strong>Good morning!</strong><br />
+                Wed, May 6 — your day:<br />
+                1. Sketch hero variants<br />
+                2. Export pebble icons<br />
+                3. Write devlog · week 14
+              </p>
+            </div>
+          </div>
+        </div>
+
         {/* Customization — wide */}
         <div className="ld-feat" style={{ ...card({ flexDirection: 'row', alignItems: 'center', gap: 32 }), gridColumn: 'span 12', minHeight: 150 }}>
           <div style={{ flex: 1 }}>

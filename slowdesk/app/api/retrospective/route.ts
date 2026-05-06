@@ -32,7 +32,7 @@ export async function GET(request: Request) {
         const emailHtml = getWeeklyRetrospectiveEmail(retrospectiveData);
 
         await resend.emails.send({
-          from: 'SlowDesk <weekly@slowdesk.app>',
+          from: 'SlowDesk <onboarding@resend.dev>',
           to: user.email,
           subject: retrospectiveData.isAllComplete
             ? '🎉 You crushed it this week! Your weekly recap'

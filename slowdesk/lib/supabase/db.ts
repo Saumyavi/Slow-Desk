@@ -27,6 +27,47 @@ export async function getUserProfile(userId: string) {
   };
 }
 
+export interface NotificationPrefs {
+  emailEnabled: boolean;
+  whatsappEnabled: boolean;
+  phone: string | null;
+  time: string;
+  timezone: string;
+}
+
+export async function getNotificationPrefs(userId: string): Promise<NotificationPrefs | null> {
+  const supabase = getClient();
+  const { data, error } = await supabase
+    .from('user_profiles')
+    .select('notification_email_enabled, notification_whatsapp_enabled, notification_phone, notification_time, notification_timezone')
+    .eq('id', userId)
+    .single();
+
+  if (error || !data) return null;
+
+  return {
+    emailEnabled: data.notification_email_enabled ?? false,
+    whatsappEnabled: data.notification_whatsapp_enabled ?? false,
+    phone: data.notification_phone ?? null,
+    time: data.notification_time ?? '08:00',
+    timezone: data.notification_timezone ?? 'UTC',
+  };
+}
+
+export async function updateNotificationPrefs(userId: string, prefs: Partial<NotificationPrefs>) {
+  const supabase = getClient();
+  const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  if (prefs.emailEnabled !== undefined)   updates.notification_email_enabled    = prefs.emailEnabled;
+  if (prefs.whatsappEnabled !== undefined) updates.notification_whatsapp_enabled = prefs.whatsappEnabled;
+  if (prefs.phone !== undefined)          updates.notification_phone            = prefs.phone;
+  if (prefs.time !== undefined)           updates.notification_time             = prefs.time;
+  if (prefs.timezone !== undefined)       updates.notification_timezone         = prefs.timezone;
+
+  const { error } = await supabase.from('user_profiles').update(updates).eq('id', userId);
+  if (error) throw error;
+  return true;
+}
+
 export async function createUserProfile(userId: string, name: string, email: string) {
   const supabase = getClient();
   const { error } = await supabase

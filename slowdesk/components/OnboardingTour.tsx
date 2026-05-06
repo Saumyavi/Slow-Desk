@@ -39,6 +39,11 @@ const STEPS = [
     body: 'Capture ideas, meeting notes, and thoughts. Notes are private and saved automatically.',
   },
   {
+    icon: '☕',
+    title: 'Morning Ritual',
+    body: 'Get a calm summary of today\'s tasks delivered to your email or WhatsApp each morning — exactly when your day starts. Set it up in Profile → Morning Ritual.',
+  },
+  {
     icon: '🎨',
     title: 'Make it yours',
     body: 'Open the Tweaks panel (bottom-left ⊞ icon) to change your theme, accent color, layout density, and more.',

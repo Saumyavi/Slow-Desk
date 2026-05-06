@@ -6,6 +6,10 @@ import { useApp, Accent } from '@/lib/store';
 import Topbar from '@/components/Topbar';
 import Icon from '@/components/Icon';
 
+const TIMEZONES = Intl.supportedValuesOf
+  ? Intl.supportedValuesOf('timeZone')
+  : ['UTC', 'America/New_York', 'America/Los_Angeles', 'Europe/London', 'Europe/Paris', 'Asia/Kolkata', 'Asia/Tokyo', 'Australia/Sydney'];
+
 const handleSignOut = async () => {
   const supabase = createClient();
   await supabase.auth.signOut();
@@ -153,6 +157,15 @@ export default function ProfilePage() {
   const [saved,    setSaved]    = useState(false);
   const [signOutConfirm, setSignOutConfirm] = useState(false);
 
+  // Morning ritual state
+  const [notifEmailEnabled,   setNotifEmailEnabled]   = useState(false);
+  const [notifWaEnabled,      setNotifWaEnabled]      = useState(false);
+  const [notifPhone,          setNotifPhone]          = useState('');
+  const [notifTime,           setNotifTime]           = useState('08:00');
+  const [notifTimezone,       setNotifTimezone]       = useState('UTC');
+  const [notifSaved,          setNotifSaved]          = useState(false);
+  const [notifSaving,         setNotifSaving]         = useState(false);
+
   const pageRef    = useRef<HTMLDivElement>(null);
   const pickerRef  = useRef<HTMLDivElement>(null);
 
@@ -163,6 +176,46 @@ export default function ProfilePage() {
       { opacity: 1, y: 0, stagger: 0.07, duration: 0.4, ease: 'power2.out' }
     );
   }, []);
+
+  // Load notification preferences
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(async ({ data }) => {
+      if (!data.user) return;
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('notification_email_enabled, notification_whatsapp_enabled, notification_phone, notification_time, notification_timezone')
+        .eq('id', data.user.id)
+        .single();
+      if (!profile) return;
+      setNotifEmailEnabled(profile.notification_email_enabled ?? false);
+      setNotifWaEnabled(profile.notification_whatsapp_enabled ?? false);
+      setNotifPhone(profile.notification_phone ?? '');
+      setNotifTime(profile.notification_time ?? '08:00');
+      setNotifTimezone(profile.notification_timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'UTC');
+    });
+  }, []);
+
+  const saveNotifPrefs = async () => {
+    setNotifSaving(true);
+    try {
+      const supabase = createClient();
+      const { data } = await supabase.auth.getUser();
+      if (!data.user) return;
+      await supabase.from('user_profiles').update({
+        notification_email_enabled: notifEmailEnabled,
+        notification_whatsapp_enabled: notifWaEnabled,
+        notification_phone: notifPhone || null,
+        notification_time: notifTime,
+        notification_timezone: notifTimezone,
+        updated_at: new Date().toISOString(),
+      }).eq('id', data.user.id);
+      setNotifSaved(true);
+      setTimeout(() => setNotifSaved(false), 2500);
+    } finally {
+      setNotifSaving(false);
+    }
+  };
 
   useEffect(() => {
     if (showAvatarPicker && pickerRef.current) {
@@ -463,6 +516,108 @@ export default function ProfilePage() {
                 <div style={{ fontSize: 11, color: 'var(--ink-faint)', marginTop: 2 }}>{desc}</div>
               </button>
             ))}
+          </div>
+        </div>
+
+        <div style={{ height: 16 }} />
+
+        {/* ── Morning Ritual ────────────────────────────────── */}
+        <div className="card" style={{ borderRadius: 14, padding: '20px 24px' }}>
+          <SectionLabel>Morning ritual</SectionLabel>
+          <p style={{ fontSize: 13, color: 'var(--ink-faint)', marginTop: 0, marginBottom: 20, lineHeight: 1.6 }}>
+            Receive a calm summary of today&apos;s pending tasks each morning via email and/or WhatsApp.
+          </p>
+
+          {/* Channel toggles */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
+            {([
+              { key: 'email', label: 'Email digest', enabled: notifEmailEnabled, set: setNotifEmailEnabled },
+              { key: 'whatsapp', label: 'WhatsApp message', enabled: notifWaEnabled, set: setNotifWaEnabled },
+            ] as const).map(({ key, label, enabled, set }) => (
+              <label key={key} style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
+                <div
+                  onClick={() => set(!enabled)}
+                  style={{
+                    width: 40, height: 22, borderRadius: 999, position: 'relative',
+                    background: enabled ? 'var(--accent)' : 'var(--line)',
+                    transition: 'background 0.2s', cursor: 'pointer', flexShrink: 0,
+                  }}
+                >
+                  <div style={{
+                    position: 'absolute', top: 3, left: enabled ? 21 : 3,
+                    width: 16, height: 16, borderRadius: '50%', background: '#fff',
+                    transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.18)',
+                  }} />
+                </div>
+                <span style={{ fontSize: 14, color: 'var(--ink)', fontFamily: 'var(--font-sans)' }}>{label}</span>
+              </label>
+            ))}
+          </div>
+
+          {/* Phone number (shown when WhatsApp is on) */}
+          {notifWaEnabled && (
+            <div style={{ marginBottom: 16 }}>
+              <FieldRow label="WhatsApp number (international format, e.g. 14155552671)">
+                <Input
+                  value={notifPhone}
+                  onChange={setNotifPhone}
+                  placeholder="14155552671"
+                />
+              </FieldRow>
+            </div>
+          )}
+
+          <Divider />
+
+          {/* Time + timezone */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 16, marginBottom: 20 }}>
+            <FieldRow label="Send at">
+              <input
+                type="time"
+                value={notifTime}
+                onChange={e => setNotifTime(e.target.value)}
+                style={{
+                  width: '100%', padding: '9px 12px', borderRadius: 8,
+                  border: '1px solid var(--line)', background: 'var(--bg)',
+                  fontSize: 14, color: 'var(--ink)', outline: 'none',
+                  fontFamily: 'var(--font-sans)', boxSizing: 'border-box',
+                  transition: 'border-color 0.15s',
+                }}
+                onFocus={e => (e.target.style.borderColor = 'var(--accent)')}
+                onBlur={e => (e.target.style.borderColor = 'var(--line)')}
+              />
+            </FieldRow>
+            <FieldRow label="Timezone">
+              <select
+                value={notifTimezone}
+                onChange={e => setNotifTimezone(e.target.value)}
+                style={{
+                  width: '100%', padding: '9px 12px', borderRadius: 8,
+                  border: '1px solid var(--line)', background: 'var(--bg)',
+                  fontSize: 14, color: 'var(--ink)', outline: 'none',
+                  fontFamily: 'var(--font-sans)', boxSizing: 'border-box',
+                  transition: 'border-color 0.15s', cursor: 'pointer',
+                }}
+                onFocus={e => (e.target.style.borderColor = 'var(--accent)')}
+                onBlur={e => (e.target.style.borderColor = 'var(--line)')}
+              >
+                {TIMEZONES.map(tz => (
+                  <option key={tz} value={tz}>{tz}</option>
+                ))}
+              </select>
+            </FieldRow>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button
+              onClick={saveNotifPrefs}
+              disabled={notifSaving}
+              className="btn btn-primary"
+              style={{ fontSize: 13, padding: '9px 20px', opacity: notifSaving ? 0.7 : 1 }}
+            >
+              {notifSaved ? '✓ Saved' : notifSaving ? 'Saving…' : 'Save preferences'}
+            </button>
+            {notifSaved && <span style={{ fontSize: 12, color: 'var(--accent)', fontFamily: 'var(--font-mono)' }}>Preferences saved</span>}
           </div>
         </div>
 
