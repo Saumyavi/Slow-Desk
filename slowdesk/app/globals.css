@@ -8,6 +8,7 @@
 :root {
   --font-display: 'Instrument Serif', Georgia, serif;
   --font-body: 'Geist', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-sans: 'Geist', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, monospace;
 
   --bg:        #f0e6d8;

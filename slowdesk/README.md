@@ -1,6 +1,6 @@
 # slowdesk
 
-A cozy, personal productivity workspace. Track tasks, projects, habits, notes, and calendar events — all in one warm, focused interface.
+A cozy, personal productivity workspace. Track tasks, projects, habits, notes, and calendar events — all in one warm, focused interface built for one person: you.
 
 ---
 
@@ -8,21 +8,24 @@ A cozy, personal productivity workspace. Track tasks, projects, habits, notes, a
 
 | Module | What it does |
 |---|---|
-| **Dashboard** | Greeting card with mood tracker, today's task list (drag to reorder), week Gantt timeline, task overview donut chart, habit activity heatmap, active project cards |
-| **Tasks** | Full task list with All / Today / Upcoming / Completed tabs, priority & project filters, inline edit and delete |
-| **Projects** | Project board with tone-colored cards, per-project task progress bars, due dates |
-| **Calendar** | Month view with draggable events, color-coded by category |
+| **Dashboard** | Greeting card with mood tracker, today's task queue (drag to reorder), week Gantt timeline, task donut chart, habit heatmap, active project cards |
+| **Tasks** | Full task list with All / Today / Upcoming / Completed tabs, priority & project filters, inline edit/delete, **photo-to-task OCR** (point camera at a handwritten list) |
+| **Projects** | Tone-colored project cards with per-project task progress bars and due dates |
+| **Calendar** | Month view with color-coded events by category |
 | **Habits** | Daily habit tracking with per-habit streak counter and 30-day history heatmap |
-| **Notes** | Rich freeform notes with color tones and an integrated daily gratitude journal |
-| **Profile** | User profile editor — name, role, bio, location, status |
-| **Tweaks panel** | Theme (light / dark), accent color (6 options), sidebar mode, content density |
+| **Notes** | Freeform notes with color tones and an integrated daily gratitude journal |
+| **Profile** | Editorial profile editor — name, role, bio, location, status emoji, avatar; appearance settings; dashboard layout picker; morning ritual setup |
+| **Morning Ritual** | Daily task digest delivered each morning via **email** (Resend) and/or **WhatsApp** (Twilio Business). Configured per-user in Profile. |
+| **Weekly Retrospective** | Auto-generated weekly summary email sent every Sunday morning |
+| **Tweaks panel** | Theme (light/dark), 6 accent colors, sidebar mode (wide/icon-only), content density (compact/cozy/comfy), background pattern (none/dots/grid), dashboard layout variant (Classic/Focus/Editorial) |
 
 **Cross-cutting:**
 - Cmd/Ctrl+K spotlight search across tasks, projects, and habits
-- Bell notifications with unread badge, mark-all-read, and per-item dismiss
-- Daily streak counter computed from task completions
-- Confetti on task completion
+- Bell notifications with unread badge and per-item dismiss
+- Daily streak counter from task completions
+- Confetti burst on task completion
 - Onboarding tour for new users
+- Animated desk scene on landing page
 
 ---
 
@@ -32,14 +35,16 @@ A cozy, personal productivity workspace. Track tasks, projects, habits, notes, a
 |---|---|
 | Framework | Next.js 16 (App Router) |
 | UI | React 19 |
-| Styling | Tailwind CSS v4 + custom CSS design system |
-| Animations | GSAP 3.15 |
-| Auth | NextAuth v4 — Google OAuth + email/password credentials |
-| State | React Context (`AppProvider` in `lib/store.tsx`) |
-| Client storage | `localStorage` keyed per user email |
-| Server storage | `.users.json` for credential-based accounts (dev only) |
+| Styling | Tailwind CSS v4 + custom CSS design system (`globals.css`) |
+| Animations | GSAP 3 |
+| Auth | Supabase Auth — Google OAuth + email/password |
+| Database | Supabase (PostgreSQL) |
+| Email | Resend |
+| WhatsApp | Twilio Business API |
+| OCR | Tesseract.js (runs in-browser, no server needed) |
+| State | React Context (`lib/store.tsx`) |
 | Language | TypeScript 5 |
-| Deployment | Vercel |
+| Deployment | Vercel (Hobby plan — 1 cron job) |
 
 ---
 
@@ -48,37 +53,57 @@ A cozy, personal productivity workspace. Track tasks, projects, habits, notes, a
 ```
 slowdesk/
 ├── app/
-│   ├── page.tsx              # Dashboard
-│   ├── tasks/page.tsx        # All tasks
-│   ├── projects/page.tsx     # Projects
-│   ├── calendar/page.tsx     # Calendar
-│   ├── habits/page.tsx       # Habits
-│   ├── notes/page.tsx        # Notes
-│   ├── profile/page.tsx      # User profile
-│   ├── login/page.tsx        # Auth callback page
-│   ├── api/auth/[...nextauth]/route.ts
-│   ├── api/register/route.ts
+│   ├── page.tsx                                    # Dashboard
+│   ├── tasks/page.tsx                              # Tasks + OCR capture
+│   ├── projects/page.tsx
+│   ├── calendar/page.tsx
+│   ├── habits/page.tsx
+│   ├── notes/page.tsx
+│   ├── profile/page.tsx                            # Profile + morning ritual settings
+│   ├── auth/callback/route.ts                      # Supabase OAuth callback
+│   ├── api/
+│   │   ├── notifications/morning-digest/route.ts   # Daily cron (4am UTC)
+│   │   └── retrospective/route.ts                  # Weekly retrospective (triggered Sundays)
 │   ├── layout.tsx
-│   └── globals.css           # Design tokens + Tailwind v4
+│   ├── globals.css                                 # Design tokens + Tailwind v4
+│   └── favicon.ico
 ├── components/
-│   ├── AppShell.tsx          # Auth gate + layout wrapper
+│   ├── AppShell.tsx          # Auth gate + main layout wrapper
+│   ├── AuthScreen.tsx        # Login / signup modal
+│   ├── CameraCapture.tsx     # Camera OCR for photo-to-task
+│   ├── Confetti.tsx          # Celebration animation
+│   ├── DeskScene.tsx         # Animated GSAP desk illustration (landing)
+│   ├── Icon.tsx              # Icon component
+│   ├── LandingPage.tsx       # Marketing landing page
+│   ├── OnboardingTour.tsx    # First-run guided tour
+│   ├── Providers.tsx         # AppProvider tree
 │   ├── Sidebar.tsx
-│   ├── Topbar.tsx            # Search, notifications, user menu
 │   ├── TaskModal.tsx         # Add / edit task modal
-│   ├── TweaksPanel.tsx       # Theme / density settings drawer
-│   ├── DeskScene.tsx         # GSAP animated desk illustration
-│   ├── LandingPage.tsx
-│   ├── AuthModal.tsx
-│   ├── AuthScreen.tsx
-│   ├── Confetti.tsx
-│   ├── OnboardingTour.tsx
-│   ├── Icon.tsx
-│   └── Providers.tsx         # NextAuth + AppProvider tree
+│   ├── TaskReview.tsx        # OCR result review before import
+│   ├── Topbar.tsx            # Search, notifications, user menu
+│   └── TweaksPanel.tsx       # Theme / density settings drawer
 ├── lib/
-│   ├── store.tsx             # Global state (tasks, projects, notifications, settings)
-│   ├── data.ts               # Types, constants, seed data, helpers
-│   └── auth.ts               # NextAuth config + credential helpers
-└── .env.example              # Required environment variables
+│   ├── data.ts               # Types, constants, helpers
+│   ├── emails/
+│   │   ├── morning-digest.ts       # Email + WhatsApp template helpers
+│   │   └── weekly-retrospective.ts # Retrospective email template
+│   ├── ocr.ts                # Tesseract.js wrapper
+│   ├── store.tsx             # Global state (tasks, projects, settings, etc.)
+│   ├── supabase/
+│   │   ├── client.ts         # Browser Supabase client
+│   │   ├── db.ts             # Database helper functions
+│   │   └── server.ts         # Server-side Supabase client
+│   ├── task-parser.ts        # Parse raw OCR text into structured tasks
+│   └── twilio.ts             # Twilio WhatsApp Business helper
+├── supabase/
+│   └── migrations/           # SQL migrations (run in Supabase SQL editor)
+├── public/
+│   ├── robots.txt
+│   └── sitemap.xml
+├── middleware.ts             # Supabase session refresh on every request
+├── next.config.ts            # Security headers + Next.js config
+├── vercel.json               # Cron job schedule
+└── .env.example              # Required environment variables (template)
 ```
 
 ---
@@ -93,27 +118,52 @@ cd slowdesk
 npm install
 ```
 
-### 2. Configure environment variables
+### 2. Set up Supabase
+
+1. Create a project at [supabase.com](https://supabase.com)
+2. Run the migration in `supabase/migrations/` via the Supabase SQL editor
+3. Go to **Authentication → Providers → Google** and enable Google OAuth (see step 4)
+4. Go to **Authentication → URL Configuration** and set:
+   - **Site URL:** `https://your-domain.vercel.app`
+   - **Redirect URLs:** `https://your-domain.vercel.app/auth/callback`
+
+### 3. Set up Google OAuth
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com) → APIs & Services → Credentials
+2. Create an OAuth 2.0 Client ID (Web application)
+3. Under **Authorized redirect URIs**, add:
+   ```
+   https://<your-supabase-project>.supabase.co/auth/v1/callback
+   ```
+4. Copy the Client ID and Secret into Supabase → Authentication → Providers → Google
+
+### 4. Configure environment variables
 
 ```bash
 cp .env.example .env.local
 ```
 
-Edit `.env.local`:
+Fill in `.env.local`:
 
 ```env
-NEXTAUTH_URL=http://localhost:3000
-NEXTAUTH_SECRET=<run: openssl rand -base64 32>
-GOOGLE_CLIENT_ID=<from Google Cloud Console>
-GOOGLE_CLIENT_SECRET=<from Google Cloud Console>
+# Supabase
+NEXT_PUBLIC_SUPABASE_URL=https://<project>.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon key>
+SUPABASE_SERVICE_ROLE_KEY=<service role key>
+
+# Resend (email delivery)
+RESEND_API_KEY=<from resend.com>
+
+# Cron authentication
+CRON_SECRET=<run: openssl rand -hex 32>
+
+# Twilio WhatsApp (optional — only needed if WhatsApp digest is used)
+TWILIO_ACCOUNT_SID=
+TWILIO_AUTH_TOKEN=
+TWILIO_WHATSAPP_FROM=whatsapp:+14155238886
 ```
 
-To set up Google OAuth:
-1. Go to [Google Cloud Console](https://console.cloud.google.com) → APIs & Services → Credentials
-2. Create an OAuth 2.0 Client ID (Web application)
-3. Add `http://localhost:3000/api/auth/callback/google` as an authorized redirect URI
-
-### 3. Run locally
+### 5. Run locally
 
 ```bash
 npm run dev
@@ -121,16 +171,25 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
-## Data Persistence
+---
 
-All user data (tasks, projects, habits, notes, calendar events, settings) is stored in `localStorage` under the key prefix `sd:<email>:*`. There is no server-side database for app data — the app is entirely client-side after authentication.
+## Cron Jobs
+
+The app runs on Vercel Hobby (1 cron limit). The single daily cron handles both notifications:
+
+| Schedule | What runs |
+|---|---|
+| `0 4 * * *` (4am UTC daily) | Morning digest — sends email/WhatsApp to all opted-in users |
+| Every Sunday (internal) | Weekly retrospective — triggered inside the daily cron on Sundays |
+
+Cron requests are authenticated with `CRON_SECRET` via the `Authorization: Bearer` header.
 
 ---
 
 ## Scripts
 
 ```bash
-npm run dev      # Start dev server (Turbopack)
+npm run dev      # Start dev server
 npm run build    # Production build
 npm run start    # Serve production build locally
 npm run lint     # Run ESLint
