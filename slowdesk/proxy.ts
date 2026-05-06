@@ -20,9 +20,7 @@ export async function proxy(request: NextRequest) {
           cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value)
           );
-          response = NextResponse.next({
-            request,
-          });
+          response = NextResponse.next({ request });
           cookiesToSet.forEach(({ name, value, options }) =>
             response.cookies.set(name, value, options)
           );
@@ -31,7 +29,7 @@ export async function proxy(request: NextRequest) {
     }
   );
 
-  // Refresh session if expired
+  // Refreshes expired sessions so server components always have a valid session
   await supabase.auth.getUser();
 
   return response;
