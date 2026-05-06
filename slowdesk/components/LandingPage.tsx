@@ -188,38 +188,44 @@ function Nav({ onSignIn }: { onSignIn: (tab: 'login' | 'signup') => void }) {
   return (
     <nav style={{
       position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100,
-      display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center',
-      padding: scrolled ? '10px 48px' : '18px 48px',
       background: 'color-mix(in srgb, var(--bg) 85%, transparent)',
       backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
       borderBottom: scrolled ? '1px solid var(--line)' : '1px solid transparent',
-      transition: 'padding 0.2s, border-color 0.2s',
+      transition: 'border-color 0.2s',
     }}>
-      {/* left — logo */}
-      <a href="#" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none', color: 'inherit' }}>
-        <div style={{ width: 28, height: 28, background: 'var(--accent)', color: '#fff', borderRadius: 7, display: 'grid', placeItems: 'center', fontFamily: 'var(--font-display)', fontSize: 18, fontStyle: 'italic', transform: 'rotate(-4deg)', boxShadow: '0 2px 8px rgba(193,98,63,0.28)' }}>s</div>
-        <span style={{ fontFamily: 'var(--font-display)', fontSize: 20, letterSpacing: '-0.02em' }}>slow<em style={{ color: 'var(--accent)' }}>desk</em></span>
-      </a>
+      {/* inner container — matches hero max-width and padding */}
+      <div style={{
+        maxWidth: 1600, margin: '0 auto',
+        display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center',
+        padding: scrolled ? '10px 5vw' : '18px 5vw',
+        transition: 'padding 0.2s',
+      }}>
+        {/* left — logo */}
+        <a href="#" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none', color: 'inherit' }}>
+          <div style={{ width: 28, height: 28, background: 'var(--accent)', color: '#fff', borderRadius: 7, display: 'grid', placeItems: 'center', fontFamily: 'var(--font-display)', fontSize: 18, fontStyle: 'italic', transform: 'rotate(-4deg)', boxShadow: '0 2px 8px rgba(193,98,63,0.28)' }}>s</div>
+          <span style={{ fontFamily: 'var(--font-display)', fontSize: 20, letterSpacing: '-0.02em' }}>slow<em style={{ color: 'var(--accent)' }}>desk</em></span>
+        </a>
 
-      {/* center — links */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-        {[['Features', 'features'], ['About', 'about'], ['Sign in', '']].map(([label, id]) => (
-          <button key={label} onClick={() => id ? scrollTo(id) : onSignIn('login')}
-            style={{ padding: '7px 14px', borderRadius: 8, border: 'none', background: 'none', fontSize: 14, fontWeight: 500, color: 'var(--ink-soft)', cursor: 'pointer', fontFamily: 'inherit', transition: 'background 0.12s, color 0.12s' }}
-            onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-sunk)'; e.currentTarget.style.color = 'var(--ink)'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = 'var(--ink-soft)'; }}
-          >{label}</button>
-        ))}
-      </div>
+        {/* center — links */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          {[['Features', 'features'], ['About', 'about'], ['Sign in', '']].map(([label, id]) => (
+            <button key={label} onClick={() => id ? scrollTo(id) : onSignIn('login')}
+              style={{ padding: '7px 14px', borderRadius: 8, border: 'none', background: 'none', fontSize: 14, fontWeight: 500, color: 'var(--ink-soft)', cursor: 'pointer', fontFamily: 'inherit', transition: 'background 0.12s, color 0.12s' }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-sunk)'; e.currentTarget.style.color = 'var(--ink)'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = 'var(--ink-soft)'; }}
+            >{label}</button>
+          ))}
+        </div>
 
-      {/* right — CTA */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <button onClick={() => onSignIn('signup')} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '9px 20px', borderRadius: 999, fontSize: 14, fontWeight: 600, background: 'var(--ink)', color: 'var(--bg)', border: 'none', cursor: 'pointer', transition: 'background 0.15s', fontFamily: 'inherit' }}
-          onMouseEnter={e => (e.currentTarget.style.background = 'var(--accent)')}
-          onMouseLeave={e => (e.currentTarget.style.background = 'var(--ink)')}
-        >
-          Start free <Icon name="chevron" size={13} style={{ color: 'inherit' }} />
-        </button>
+        {/* right — CTA */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <button onClick={() => onSignIn('signup')} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '9px 20px', borderRadius: 999, fontSize: 14, fontWeight: 600, background: 'var(--ink)', color: 'var(--bg)', border: 'none', cursor: 'pointer', transition: 'background 0.15s', fontFamily: 'inherit' }}
+            onMouseEnter={e => (e.currentTarget.style.background = 'var(--accent)')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'var(--ink)')}
+          >
+            Start free <Icon name="chevron" size={13} style={{ color: 'inherit' }} />
+          </button>
+        </div>
       </div>
     </nav>
   );
