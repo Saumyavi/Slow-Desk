@@ -129,6 +129,8 @@ export interface CalEvent {
   endTime: string;
   color: string;
   note: string;
+  source?: 'local' | 'google';
+  googleEventId?: string;
 }
 
 export function computeProgress(tasks: { done: boolean }[]): number {

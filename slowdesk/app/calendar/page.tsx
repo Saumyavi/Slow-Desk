@@ -171,15 +171,72 @@ export default function CalendarPage() {
   const [month,    setMonth]    = useState(() => new Date().getMonth());
   const [selected, setSelected] = useState<number | null>(() => new Date().getDate());
   const [modal,    setModal]    = useState<{ day: number; event?: CalEvent } | null>(null);
-  const [userId, setUserId] = useState<string | null>(null);
+  const [userId,   setUserId]   = useState<string | null>(null);
+
+  // Google Calendar state
+  const [gcalConnected, setGcalConnected] = useState(false);
+  const [gcalSyncing,   setGcalSyncing]   = useState(false);
+  const [gcalSyncMsg,   setGcalSyncMsg]   = useState('');
+
   const gridRef = useRef<HTMLDivElement>(null);
   const sideRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user) setUserId(user.id);
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) return;
+      setUserId(user.id);
+
+      // Check Google Calendar connection status
+      const { data } = await supabase
+        .from('user_profiles')
+        .select('google_calendar_connected')
+        .eq('id', user.id)
+        .single();
+      if (data?.google_calendar_connected) setGcalConnected(true);
     });
+
+    // Handle redirect params after OAuth
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('gcal_connected') === '1') {
+      setGcalConnected(true);
+      setGcalSyncMsg('Google Calendar connected!');
+      window.history.replaceState({}, '', '/calendar');
+      handleSync();
+    }
+    if (params.get('gcal_error')) {
+      setGcalSyncMsg('Could not connect Google Calendar. Try again.');
+      window.history.replaceState({}, '', '/calendar');
+    }
   }, []);
+
+  const handleSync = async () => {
+    setGcalSyncing(true);
+    setGcalSyncMsg('');
+    try {
+      const res = await fetch('/api/google-calendar/sync', { method: 'POST' });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error);
+      setGcalSyncMsg(`Synced ${json.synced} events`);
+      // Reload events from DB
+      if (userId) {
+        const fresh = await import('@/lib/supabase/db').then(m => m.getCalendarEvents(userId));
+        setEvents(fresh);
+      }
+    } catch (e: any) {
+      setGcalSyncMsg(e.message ?? 'Sync failed');
+    } finally {
+      setGcalSyncing(false);
+      setTimeout(() => setGcalSyncMsg(''), 3000);
+    }
+  };
+
+  const handleDisconnect = async () => {
+    await fetch('/api/google-calendar/disconnect', { method: 'POST' });
+    setGcalConnected(false);
+    setEvents(prev => prev.filter(e => e.source !== 'google'));
+    setGcalSyncMsg('Disconnected');
+    setTimeout(() => setGcalSyncMsg(''), 2000);
+  };
 
   useEffect(() => {
     if (!gridRef.current) return;
@@ -356,8 +413,13 @@ export default function CalendarPage() {
                                 fontSize: 10, fontWeight: 500, padding: '2px 5px', borderRadius: 4,
                                 background: ev.color + '22', color: ev.color,
                                 overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                                cursor: 'pointer',
-                              }}>{ev.title}</div>
+                                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 3,
+                              }}>
+                              {ev.source === 'google' && (
+                                <span style={{ fontSize: 8, fontFamily: 'var(--font-mono)', fontWeight: 700, background: ev.color, color: '#fff', borderRadius: 2, padding: '0 3px', flexShrink: 0 }}>G</span>
+                              )}
+                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.title}</span>
+                            </div>
                           ))}
                           {dayEvs.length > 2 && (
                             <div style={{ fontSize: 9, color: 'var(--ink-faint)', paddingLeft: 2, fontFamily: 'var(--font-mono)' }}>
@@ -375,6 +437,70 @@ export default function CalendarPage() {
 
           {/* Sidebar */}
           <div ref={sideRef} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+            {/* Google Calendar card */}
+            <div className="card" style={{ padding: '16px 20px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                {/* Google Calendar icon */}
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <rect x="3" y="4" width="18" height="17" rx="2" stroke="var(--ink-soft)" strokeWidth="1.6"/>
+                  <path d="M3 9h18" stroke="var(--ink-soft)" strokeWidth="1.6"/>
+                  <path d="M8 2v4M16 2v4" stroke="var(--ink-soft)" strokeWidth="1.6" strokeLinecap="round"/>
+                  <circle cx="12" cy="15" r="2.5" fill="var(--accent)" opacity="0.8"/>
+                </svg>
+                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)', flex: 1 }}>Google Calendar</span>
+                {gcalConnected && (
+                  <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--sage)', background: 'var(--sage-soft)', padding: '2px 7px', borderRadius: 4 }}>
+                    connected
+                  </span>
+                )}
+              </div>
+
+              {gcalSyncMsg && (
+                <div style={{ fontSize: 11, color: 'var(--accent)', fontFamily: 'var(--font-mono)', marginBottom: 10 }}>
+                  {gcalSyncMsg}
+                </div>
+              )}
+
+              {gcalConnected ? (
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    onClick={handleSync}
+                    disabled={gcalSyncing}
+                    className="btn btn-primary"
+                    style={{ flex: 1, fontSize: 12, padding: '7px 12px', opacity: gcalSyncing ? 0.7 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                  >
+                    <Icon name="refresh" size={12} />
+                    {gcalSyncing ? 'Syncing…' : 'Sync now'}
+                  </button>
+                  <button
+                    onClick={handleDisconnect}
+                    className="btn"
+                    style={{ fontSize: 12, padding: '7px 12px', color: 'var(--ink-faint)' }}
+                  >
+                    Disconnect
+                  </button>
+                </div>
+              ) : (
+                <a
+                  href="/api/google-calendar/connect"
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    padding: '9px 14px', borderRadius: 9,
+                    border: '1px solid var(--line)', background: 'var(--bg)',
+                    fontSize: 13, fontWeight: 500, color: 'var(--ink)',
+                    textDecoration: 'none', transition: 'all 0.15s', cursor: 'pointer',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.color = 'var(--accent)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--line)'; e.currentTarget.style.color = 'var(--ink)'; }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 5v14M5 12h14"/>
+                  </svg>
+                  Connect Google Calendar
+                </a>
+              )}
+            </div>
 
             {/* Today's schedule */}
             <div className="card" style={{ padding: '18px 20px' }}>
@@ -420,7 +546,12 @@ export default function CalendarPage() {
                       }}>{formatTime(ev.time)}</div>
                       <div style={{ width: 3, borderRadius: 2, background: ev.color, flexShrink: 0, minHeight: 36, alignSelf: 'stretch' }} />
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, lineHeight: 1.35, marginBottom: 3 }}>{ev.title}</div>
+                        <div style={{ fontSize: 13, fontWeight: 600, lineHeight: 1.35, marginBottom: 3, display: 'flex', alignItems: 'center', gap: 5 }}>
+                          {ev.source === 'google' && (
+                            <span style={{ fontSize: 8, fontFamily: 'var(--font-mono)', fontWeight: 700, background: 'var(--accent)', color: '#fff', borderRadius: 2, padding: '1px 3px', flexShrink: 0 }}>G</span>
+                          )}
+                          {ev.title}
+                        </div>
                         {ev.note && (
                           <div style={{ fontSize: 11, color: 'var(--ink-faint)', fontFamily: 'var(--font-mono)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {ev.note}
