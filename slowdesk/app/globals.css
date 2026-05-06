@@ -84,16 +84,38 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-body[data-bg-pattern="dots"] {
-  background-image: radial-gradient(rgba(120,100,80,0.15) 1px, transparent 1px);
-  background-size: 18px 18px;
+body[data-bg-pattern="dots"] .main {
+  background-image: radial-gradient(rgba(120,100,80,0.38) 1.5px, transparent 1.5px);
+  background-size: 20px 20px;
 }
-body[data-bg-pattern="grid"] {
+body[data-bg-pattern="grid"] .main {
   background-image:
-    linear-gradient(to right, rgba(120,100,80,0.08) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(120,100,80,0.08) 1px, transparent 1px);
+    linear-gradient(to right, rgba(120,100,80,0.22) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(120,100,80,0.22) 1px, transparent 1px);
   background-size: 24px 24px;
 }
+[data-theme="dark"] body[data-bg-pattern="dots"] .main {
+  background-image: radial-gradient(rgba(255,220,180,0.2) 1.5px, transparent 1.5px);
+  background-size: 20px 20px;
+}
+[data-theme="dark"] body[data-bg-pattern="grid"] .main {
+  background-image:
+    linear-gradient(to right, rgba(255,220,180,0.1) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255,220,180,0.1) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* Density — page padding and card padding */
+[data-density="compact"] .page { padding: 12px 16px 40px !important; }
+[data-density="comfy"]   .page { padding: 36px 44px 80px !important; }
+[data-density="compact"] .card { padding: 10px 12px !important; font-size: 13px; gap: 10px !important; }
+[data-density="comfy"]   .card { padding: 28px 32px !important; font-size: 15px; }
+[data-density="compact"] .card .card { padding: 8px 10px !important; }
+[data-density="comfy"]   .card .card { padding: 20px 24px !important; }
+
+/* Dashboard layout variants */
+.dashboard-grid[data-variant="B"] { grid-template-columns: 2fr 1fr; }
+.dashboard-grid[data-variant="C"] { grid-template-columns: 1fr 1fr; }
 
 button { font-family: inherit; font-size: inherit; cursor: pointer; border: none; background: none; color: inherit; }
 input, textarea { font-family: inherit; }

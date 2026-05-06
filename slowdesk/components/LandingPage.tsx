@@ -1,406 +1,548 @@
 'use client';
-import { useState, useRef, useEffect, ReactNode } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { gsap } from 'gsap';
-import Icon, { IconName } from './Icon';
+import Icon from './Icon';
 import AuthScreen from './AuthScreen';
 
-/* ── Data ────────────────────────────────────────────────── */
-const FEATURES: { icon: IconName; emoji: string; label: string; desc: string; color: string }[] = [
-  { icon: 'dashboard', emoji: '🖥️', label: 'Dashboard',      color: '#c1623f', desc: 'Your command center. See today\'s tasks, mood, projects, and activity all in one calm view.' },
-  { icon: 'list',      emoji: '📋', label: 'All Tasks',       color: '#7a9e7e', desc: 'Capture and organize everything with priorities, due dates, projects, and drag-to-reorder.' },
-  { icon: 'camera',    emoji: '📸', label: 'Photo to Tasks',  color: '#c9943a', desc: 'Snap a photo of printed task lists or typed notes. OCR extracts them automatically — 100% free.' },
-  { icon: 'calendar',  emoji: '📅', label: 'Calendar',        color: '#8b5c75', desc: 'Plan your weeks with a warm color-coded calendar. Add events, set times, write notes.' },
-  { icon: 'habits',    emoji: '🌱', label: 'Habit Tracker',   color: '#c9943a', desc: 'Build streaks with a 30-day heatmap. Watch your consistency grow, one day at a time.' },
-  { icon: 'projects',  emoji: '📁', label: 'Projects',        color: '#5b8fbf', desc: 'Track multiple projects with subtasks, live progress bars, and portfolio overviews.' },
-  { icon: 'notes',     emoji: '📝', label: 'Notes & Journal', color: '#8b5c75', desc: 'Write freely, save thoughts, and practice daily gratitude — all in one warm space.' },
-];
+/* ── CSS keyframes injected once ─────────────────────────── */
+const LANDING_CSS = `
+@keyframes ld-float1{0%,100%{transform:translateY(0) rotate(-4deg)}50%{transform:translateY(-20px) rotate(2deg)}}
+@keyframes ld-float2{0%,100%{transform:translateY(0) rotate(6deg)}50%{transform:translateY(-16px) rotate(-2deg)}}
+@keyframes ld-float3{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-24px) rotate(4deg)}}
+@keyframes ld-pulse{0%,100%{opacity:1}50%{opacity:0.35}}
+@keyframes ld-strike{from{transform:rotate(-2deg) scaleX(0)}to{transform:rotate(-2deg) scaleX(1)}}
+@keyframes ld-task-in{to{opacity:1;transform:translateY(0)}}
+@keyframes ld-blink{50%{opacity:0}}
+@keyframes ld-confetti{0%{opacity:0;transform:translate(0,0) rotate(0deg)}10%{opacity:1}100%{opacity:0;transform:var(--cf) rotate(540deg)}}
+@keyframes ld-spin{to{transform:rotate(360deg)}}
+.ld-f1{animation:ld-float1 8s ease-in-out infinite}
+.ld-f2{animation:ld-float2 10s ease-in-out infinite}
+.ld-f3{animation:ld-float3 12s ease-in-out infinite}
+.ld-f4{animation:ld-float1 9s ease-in-out infinite}
+.ld-f5{animation:ld-float2 11s ease-in-out infinite}
+.ld-f6{animation:ld-float3 9s ease-in-out infinite}
+.ld-dot{animation:ld-pulse 2s ease-in-out infinite}
+.ld-strike::after{content:'';position:absolute;left:-4px;right:-4px;top:55%;height:8px;background:var(--accent);border-radius:4px;opacity:0.72;transform:rotate(-2deg);animation:ld-strike 1s 0.7s cubic-bezier(0.2,0.9,0.3,1.2) backwards;transform-origin:left center}
+.ld-cursor{display:inline-block;width:2px;height:1em;background:var(--accent);vertical-align:text-bottom;margin-left:1px;animation:ld-blink 1s steps(2) infinite}
+.ld-feat:hover{transform:translateY(-4px);box-shadow:0 20px 40px -20px rgba(40,30,20,0.14)}
+`;
 
-const QUOTES = [
-  { text: 'The first productivity app I actually want to open in the morning.', author: 'Designer, remote' },
-  { text: 'It feels like journaling but for your whole life workflow.', author: 'Indie hacker' },
-  { text: 'Finally, a productivity app that doesn\'t give me anxiety.', author: 'Creative director' },
-];
 
-const STEPS = [
-  { n: '01', title: 'Sign up free', desc: 'No credit card, no noise. Just your name and email.' },
-  { n: '02', title: 'Set your pace', desc: 'Choose your layout, density, and accent color.' },
-  { n: '03', title: 'Start slowly', desc: 'Add one task. Track one habit. Write one note.' },
-];
-
-/* ── Smooth scroll helper ────────────────────────────────── */
-function scrollTo(id: string) {
-  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-
-/* ── Floating ambient card ───────────────────────────────── */
-function FloatCard({ children, top, right, left, bottom, delay = 0 }: {
-  children: ReactNode; top?: number | string; right?: number | string;
-  left?: number | string; bottom?: number | string; delay?: number;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    gsap.fromTo(ref.current, { opacity: 0, scale: 0.8, y: 12 }, { opacity: 1, scale: 1, y: 0, duration: 0.55, delay: 1 + delay, ease: 'back.out(1.5)' });
-    gsap.to(ref.current, { y: -7, duration: 2.4 + delay * 0.4, ease: 'sine.inOut', yoyo: true, repeat: -1, delay: 1.5 });
-  }, [delay]);
+/* ── Animated demo card ──────────────────────────────────── */
+function ConfettiBurst({ row }: { row: number }) {
+  const top = 14 + row * 58 + 20;
+  const colors = ['var(--accent)', 'var(--sage)', 'var(--butter)', 'var(--plum)', 'var(--sky)'];
   return (
-    <div ref={ref} style={{
-      position: 'absolute', top, right, left, bottom, opacity: 0,
-      background: 'var(--bg-elev)', border: '1px solid var(--line)',
-      borderRadius: 14, padding: '10px 14px',
-      boxShadow: '0 8px 28px rgba(0,0,0,0.1)', zIndex: 10, minWidth: 130,
-    }}>{children}</div>
+    <>
+      {Array.from({ length: 12 }).map((_, i) => {
+        const dx = (Math.random() - 0.5) * 240;
+        const dy = -(Math.random() * 70 + 30);
+        return (
+          <span key={i} style={{
+            position: 'absolute', left: 28, top,
+            width: 7, height: 11, borderRadius: 2, pointerEvents: 'none',
+            background: colors[i % colors.length], opacity: 0,
+            ['--cf' as string]: `translate(${dx}px,${dy}px)`,
+            animation: 'ld-confetti 1.3s cubic-bezier(0.2,0.7,0.3,1) forwards',
+          }} />
+        );
+      })}
+    </>
   );
 }
 
-/* ── App UI mockup ───────────────────────────────────────── */
-function AppMockup() {
-  const wrapRef = useRef<HTMLDivElement>(null);
+function AnimatedDemo() {
+  const [typed, setTyped] = useState('');
+  const [inputDone, setInputDone] = useState(false);
+  const [checked, setChecked] = useState<Record<string, boolean>>({});
+  const [confetti, setConfetti] = useState<{ row: number; k: number } | null>(null);
+  const target = 'Sketch hero variants for Folio v3';
+
   useEffect(() => {
-    gsap.fromTo(wrapRef.current, { opacity: 0, y: 28 }, { opacity: 1, y: 0, duration: 0.9, ease: 'power3.out', delay: 0.5 });
-    gsap.to(wrapRef.current, { y: -10, duration: 3.2, ease: 'sine.inOut', yoyo: true, repeat: -1, delay: 1.4 });
+    let i = 0;
+    const t0 = setTimeout(() => {
+      const id = setInterval(() => {
+        i++;
+        setTyped(target.slice(0, i));
+        if (i >= target.length) { clearInterval(id); setTimeout(() => setInputDone(true), 500); }
+      }, 52);
+    }, 600);
+    const t1 = setTimeout(() => { setChecked(c => ({ ...c, t2: true })); setConfetti({ row: 1, k: Date.now() }); }, 4500);
+    const t2 = setTimeout(() => { setChecked(c => ({ ...c, t3: true })); setConfetti({ row: 2, k: Date.now() }); }, 6800);
+    return () => { clearTimeout(t0); clearTimeout(t1); clearTimeout(t2); };
   }, []);
 
+  const tasks = [
+    { id: 't1', title: typed || target, tag: 'sage',   tagLabel: 'Folio v3',   isInput: true },
+    { id: 't2', title: 'Pick type pairing for Cozy Notes', tag: 'terra',  tagLabel: 'Cozy Notes' },
+    { id: 't3', title: 'Export pebble icon set v2',        tag: 'butter', tagLabel: 'Pebble'     },
+    { id: 't4', title: 'Write devlog · week 14',           tag: 'plum',   tagLabel: 'Journal'    },
+  ];
+
+  const TAG_COLORS: Record<string, { bg: string; color: string }> = {
+    terra:  { bg: 'var(--accent-soft)',          color: 'var(--accent)' },
+    sage:   { bg: 'var(--sage-soft)',            color: '#4a7a4e' },
+    butter: { bg: 'var(--butter-soft)',          color: '#7a5820' },
+    plum:   { bg: 'var(--plum-soft)',            color: 'var(--plum)' },
+  };
+
   return (
-    <div ref={wrapRef} style={{ position: 'relative', width: 520, flexShrink: 0, opacity: 0 }}>
-      {/* Browser chrome */}
-      <div style={{
-        background: 'var(--bg-elev)', borderRadius: 18, border: '1px solid var(--line)',
-        boxShadow: '0 40px 90px rgba(0,0,0,0.16), 0 0 0 1px rgba(255,255,255,0.4)',
-        overflow: 'hidden',
-      }}>
-        {/* window bar */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 14px', background: 'var(--bg-sunk)', borderBottom: '1px solid var(--line)' }}>
-          {['#ff6059','#febc2e','#28c840'].map(c => <div key={c} style={{ width: 11, height: 11, borderRadius: '50%', background: c }} />)}
-          <div style={{ flex: 1, height: 18, borderRadius: 5, background: 'var(--bg-elev)', marginLeft: 8 }} />
+    <div style={{ background: 'var(--bg-elev)', border: '1px solid var(--line)', borderRadius: 18, overflow: 'hidden', boxShadow: '0 30px 80px -30px rgba(40,30,20,0.22)' }}>
+      {/* browser chrome */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '11px 16px', background: 'var(--bg-sunk)', borderBottom: '1px solid var(--line)' }}>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {['#ff5f57', '#febc2e', '#28c840'].map(c => <div key={c} style={{ width: 11, height: 11, borderRadius: '50%', background: c }} />)}
         </div>
-        {/* app layout */}
-        <div style={{ display: 'flex', height: 350 }}>
-          {/* sidebar */}
-          <div style={{ width: 54, background: 'var(--bg-elev)', borderRight: '1px solid var(--line)', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '12px 8px', gap: 5 }}>
-            <div style={{ width: 30, height: 30, borderRadius: 9, background: 'var(--accent)', marginBottom: 10 }} />
-            {[0,1,2,3,4].map(i => <div key={i} style={{ width: 34, height: 28, borderRadius: 7, background: i === 0 ? 'var(--accent-soft)' : 'transparent' }} />)}
-          </div>
-          {/* main */}
-          <div style={{ flex: 1, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8, overflow: 'hidden' }}>
-            {/* topbar strip */}
-            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-              <div style={{ height: 16, width: 110, borderRadius: 4, background: 'var(--bg-sunk)' }} />
-              <div style={{ flex: 1 }} />
-              <div style={{ width: 90, height: 22, borderRadius: 5, background: 'var(--bg-sunk)' }} />
-              <div style={{ width: 34, height: 22, borderRadius: 5, background: 'var(--accent)', opacity: 0.85 }} />
-            </div>
-            {/* greeting card */}
-            <div style={{ height: 86, borderRadius: 13, position: 'relative', overflow: 'hidden', background: 'linear-gradient(135deg, #3a2010 0%, #6b2a50 100%)' }}>
-              <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(105deg, rgba(42,26,18,0.7) 0%, transparent 70%)' }} />
-              <div style={{ position: 'relative', padding: '10px 13px' }}>
-                <div style={{ height: 7, width: 70, borderRadius: 3, background: 'rgba(255,255,255,0.45)', marginBottom: 7 }} />
-                <div style={{ height: 13, width: 150, borderRadius: 4, background: 'rgba(255,255,255,0.75)', marginBottom: 10 }} />
-                <div style={{ display: 'flex', gap: 4 }}>
-                  {['😌','😊','🔥'].map(m => <div key={m} style={{ width: 22, height: 22, borderRadius: 6, background: 'rgba(255,255,255,0.18)', display: 'grid', placeItems: 'center', fontSize: 12 }}>{m}</div>)}
-                </div>
-              </div>
-            </div>
-            {/* task rows */}
-            {[{ w: '55%', done: true }, { w: '72%', done: false }, { w: '63%', done: false }].map((t, i) => (
-              <div key={i} style={{ height: 34, borderRadius: 8, background: 'var(--bg-sunk)', display: 'flex', alignItems: 'center', gap: 8, padding: '0 10px', border: '1px solid var(--line)' }}>
-                <div style={{ width: 14, height: 14, borderRadius: 4, background: t.done ? 'var(--accent)' : 'transparent', border: `1.5px solid ${t.done ? 'var(--accent)' : 'var(--line)'}` }} />
-                <div style={{ height: 8, borderRadius: 3, background: 'var(--line)', width: t.w, opacity: t.done ? 0.45 : 0.8 }} />
-                {!t.done && i === 1 && <div style={{ width: 28, height: 14, borderRadius: 10, background: 'rgba(193,98,63,0.2)', marginLeft: 'auto' }} />}
-              </div>
-            ))}
-            {/* mini progress bars */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginTop: 2 }}>
-              {[['#c1623f', '72%'], ['#7a9e7e', '45%']].map(([c, w]) => (
-                <div key={c} style={{ background: 'var(--bg-sunk)', borderRadius: 8, padding: '8px 10px', border: '1px solid var(--line)' }}>
-                  <div style={{ height: 7, borderRadius: 3, background: 'var(--line)', overflow: 'hidden' }}>
-                    <div style={{ height: '100%', width: w, background: c, borderRadius: 3 }} />
-                  </div>
-                </div>
-              ))}
-            </div>
+        <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
+          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--ink-faint)', background: 'var(--bg)', padding: '3px 12px', borderRadius: 6, maxWidth: 340 }}>
+            slowdesk.app/today
           </div>
         </div>
+        <div style={{ width: 30 }} />
       </div>
 
-      {/* floating ambient cards */}
-      <FloatCard top={30} right={-70} delay={0}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-          <span style={{ fontSize: 20 }}>🔥</span>
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink)' }}>12 day streak</div>
-            <div style={{ fontSize: 10, color: 'var(--ink-faint)' }}>Morning pages</div>
+      {/* demo body */}
+      <div style={{ padding: '28px 28px 24px' }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 20 }}>
+          <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 30, margin: 0, letterSpacing: '-0.02em' }}>
+            Today <span style={{ color: 'var(--ink-faint)', fontSize: 20 }}>· Wed, May 6</span>
+          </h3>
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--ink-faint)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+            <b style={{ color: 'var(--accent)' }}>{Object.values(checked).filter(Boolean).length}</b> / 4 done
+          </span>
+        </div>
+
+        {/* dark focus card */}
+        <div style={{ borderRadius: 12, overflow: 'hidden', marginBottom: 14, background: 'linear-gradient(135deg, #2a1a2e 0%, #3d1f2f 40%, #1e1530 100%)', padding: '16px 18px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#5ab55a' }} />
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'rgba(255,255,255,0.75)', letterSpacing: '0.04em' }}>Sprint planning</span>
+            </div>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'rgba(255,255,255,0.38)', letterSpacing: '0.06em' }}>14:08</span>
+          </div>
+          <div style={{ height: 3, background: 'rgba(255,255,255,0.08)', borderRadius: 2, marginBottom: 14, overflow: 'hidden' }}>
+            <div style={{ width: '62%', height: '100%', background: 'linear-gradient(90deg, #c1623f, #e8855e)', borderRadius: 2 }} />
+          </div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            {['😊', '🔥', '✨'].map(e => (
+              <div key={e} style={{ width: 30, height: 30, borderRadius: 8, background: 'rgba(255,255,255,0.08)', display: 'grid', placeItems: 'center', fontSize: 14 }}>{e}</div>
+            ))}
           </div>
         </div>
-      </FloatCard>
 
-      <FloatCard bottom={50} left={-80} delay={0.4}>
-        <div style={{ fontSize: 10, color: 'var(--ink-faint)', marginBottom: 5 }}>Today's progress</div>
-        <div style={{ height: 5, borderRadius: 3, background: 'var(--bg-sunk)', overflow: 'hidden', width: 100, marginBottom: 4 }}>
-          <div style={{ height: '100%', width: '65%', background: 'var(--accent)', borderRadius: 3 }} />
+        {/* fake input row */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '13px 16px', background: 'var(--bg-sunk)', border: '1px dashed var(--line)', borderRadius: 10, marginBottom: 16, fontSize: 14, fontWeight: 500 }}>
+          <div style={{ width: 20, height: 20, borderRadius: 6, background: 'var(--accent)', color: '#fff', display: 'grid', placeItems: 'center', flexShrink: 0, fontSize: 14, lineHeight: 1 }}>+</div>
+          <span style={{ flex: 1, color: typed ? 'var(--ink)' : 'var(--ink-faint)' }}>
+            {typed || 'Add a task…'}
+            {!inputDone && <span className="ld-cursor" />}
+          </span>
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-faint)', padding: '2px 7px', background: 'var(--bg)', borderRadius: 5, border: '1px solid var(--line)' }}>⏎</span>
         </div>
-        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent)' }}>4 of 7 done</div>
-      </FloatCard>
 
-      <FloatCard top={-24} left={60} delay={0.7}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <div style={{ width: 8, height: 8, borderRadius: 2, background: '#7a9e7e', flexShrink: 0 }} />
-          <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--ink)' }}>Sprint planning</span>
-          <span style={{ fontSize: 10, color: 'var(--ink-faint)', fontFamily: 'var(--font-mono)' }}>14:00</span>
+        {/* task rows */}
+        <div style={{ position: 'relative' }}>
+          {tasks.map((t, i) => {
+            const done = !!checked[t.id];
+            const tc = TAG_COLORS[t.tag];
+            return (
+              <div key={t.id} style={{
+                display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px',
+                background: 'var(--bg)', border: '1px solid var(--line)', borderRadius: 10, marginBottom: 8,
+                opacity: 0, transform: 'translateY(8px)',
+                animation: `ld-task-in 0.5s cubic-bezier(0.2,0.9,0.3,1.2) ${1.1 + i * 0.5}s forwards`,
+              }}>
+                <div style={{ width: 20, height: 20, borderRadius: 6, border: `1.5px solid ${done ? 'var(--accent)' : 'var(--line)'}`, background: done ? 'var(--accent)' : 'transparent', display: 'grid', placeItems: 'center', flexShrink: 0, transition: 'all 0.2s' }}>
+                  {done && <Icon name="check" size={12} style={{ color: '#fff' }} />}
+                </div>
+                <span style={{ flex: 1, fontSize: 14, fontWeight: 500, color: done ? 'var(--ink-faint)' : 'var(--ink)', textDecoration: done ? 'line-through' : 'none' }}>{t.title}</span>
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, padding: '2px 9px', borderRadius: 999, background: tc.bg, color: tc.color }}>{t.tagLabel}</span>
+              </div>
+            );
+          })}
+          {confetti && <ConfettiBurst key={confetti.k} row={confetti.row} />}
         </div>
-      </FloatCard>
+
+        <div style={{ display: 'flex', gap: 16, marginTop: 14, fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-faint)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+          <span>· drag to reorder</span>
+          <span>· ⌘K quick-add</span>
+          <span>· confetti on done 🎉</span>
+        </div>
+      </div>
     </div>
   );
 }
 
-/* ── Navbar ──────────────────────────────────────────────── */
-function Navbar({ onSignIn }: { onSignIn: () => void }) {
-  const ref = useRef<HTMLElement>(null);
+/* ── Nav ─────────────────────────────────────────────────── */
+function Nav({ onSignIn }: { onSignIn: (tab: 'login' | 'signup') => void }) {
+  const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
-    gsap.fromTo(ref.current, { y: -20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, ease: 'power2.out' });
+    const h = () => setScrolled(window.scrollY > 20);
+    window.addEventListener('scroll', h);
+    return () => window.removeEventListener('scroll', h);
   }, []);
 
-  const NAV_LINKS = [
-    { label: 'Features',     id: 'features' },
-    { label: 'About',        id: 'about' },
-    { label: 'How it works', id: 'how-it-works' },
-  ];
+  const scrollTo = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
 
   return (
-    <nav ref={ref} style={{
-      position: 'sticky', top: 0, zIndex: 100,
-      display: 'flex', alignItems: 'center', gap: 32,
-      padding: '14px 60px',
-      background: 'color-mix(in srgb, var(--bg) 88%, transparent)',
-      backdropFilter: 'blur(12px)', borderBottom: '1px solid var(--line-soft)',
+    <nav style={{
+      position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100,
+      display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center',
+      padding: scrolled ? '10px 48px' : '18px 48px',
+      background: 'color-mix(in srgb, var(--bg) 85%, transparent)',
+      backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
+      borderBottom: scrolled ? '1px solid var(--line)' : '1px solid transparent',
+      transition: 'padding 0.2s, border-color 0.2s',
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <div style={{
-          width: 32, height: 32, borderRadius: 9, background: 'var(--accent)', color: '#fff',
-          display: 'grid', placeItems: 'center',
-          fontFamily: 'var(--font-display)', fontSize: 22, fontStyle: 'italic', transform: 'rotate(-4deg)',
-          boxShadow: '0 2px 8px rgba(193,98,63,0.35)',
-        }}>s</div>
-        <span style={{ fontFamily: 'var(--font-display)', fontSize: 22, letterSpacing: '-0.02em' }}>
-          slow<em style={{ color: 'var(--accent)' }}>desk</em>
-        </span>
+      {/* left — logo */}
+      <a href="#" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none', color: 'inherit' }}>
+        <div style={{ width: 28, height: 28, background: 'var(--accent)', color: '#fff', borderRadius: 7, display: 'grid', placeItems: 'center', fontFamily: 'var(--font-display)', fontSize: 18, fontStyle: 'italic', transform: 'rotate(-4deg)', boxShadow: '0 2px 8px rgba(193,98,63,0.28)' }}>s</div>
+        <span style={{ fontFamily: 'var(--font-display)', fontSize: 20, letterSpacing: '-0.02em' }}>slow<em style={{ color: 'var(--accent)' }}>desk</em></span>
+      </a>
+
+      {/* center — links */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+        {[['Features', 'features'], ['About', 'about'], ['Sign in', '']].map(([label, id]) => (
+          <button key={label} onClick={() => id ? scrollTo(id) : onSignIn('login')}
+            style={{ padding: '7px 14px', borderRadius: 8, border: 'none', background: 'none', fontSize: 14, fontWeight: 500, color: 'var(--ink-soft)', cursor: 'pointer', fontFamily: 'inherit', transition: 'background 0.12s, color 0.12s' }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-sunk)'; e.currentTarget.style.color = 'var(--ink)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = 'var(--ink-soft)'; }}
+          >{label}</button>
+        ))}
       </div>
-      <div style={{ flex: 1 }} />
-      {NAV_LINKS.map(link => (
-        <button key={link.label}
-          onClick={() => scrollTo(link.id)}
-          style={{
-            fontSize: 13, color: 'var(--ink-soft)', cursor: 'pointer',
-            fontWeight: 500, background: 'none', border: 'none',
-            fontFamily: 'var(--font-sans)', padding: '4px 2px',
-            transition: 'color 0.15s',
-          }}
-          onMouseEnter={e => (e.currentTarget.style.color = 'var(--ink)')}
-          onMouseLeave={e => (e.currentTarget.style.color = 'var(--ink-soft)')}
-        >{link.label}</button>
-      ))}
-      <button onClick={onSignIn} className="btn" style={{ fontSize: 13 }}>Sign in</button>
-      <button onClick={onSignIn} className="btn btn-primary" style={{ fontSize: 13 }}>Get started free →</button>
+
+      {/* right — CTA */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <button onClick={() => onSignIn('signup')} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '9px 20px', borderRadius: 999, fontSize: 14, fontWeight: 600, background: 'var(--ink)', color: 'var(--bg)', border: 'none', cursor: 'pointer', transition: 'background 0.15s', fontFamily: 'inherit' }}
+          onMouseEnter={e => (e.currentTarget.style.background = 'var(--accent)')}
+          onMouseLeave={e => (e.currentTarget.style.background = 'var(--ink)')}
+        >
+          Start free <Icon name="chevron" size={13} style={{ color: 'inherit' }} />
+        </button>
+      </div>
     </nav>
   );
 }
 
-/* ── Hero section ────────────────────────────────────────── */
-function HeroSection({ onGetStarted }: { onGetStarted: () => void }) {
-  const textRef = useRef<HTMLDivElement>(null);
+/* ── Hero ────────────────────────────────────────────────── */
+function Hero({ onCta }: { onCta: (tab: 'login' | 'signup') => void }) {
+  const ref = useRef<HTMLElement>(null);
   useEffect(() => {
-    if (!textRef.current) return;
-    const els = textRef.current.querySelectorAll('[data-in]');
-    gsap.fromTo(els, { y: 36, opacity: 0 }, { y: 0, opacity: 1, stagger: 0.1, duration: 0.75, ease: 'power3.out', delay: 0.15 });
+    if (!ref.current) return;
+    gsap.fromTo(ref.current.querySelectorAll('[data-in]'),
+      { y: 24, opacity: 0 },
+      { y: 0, opacity: 1, stagger: 0.1, duration: 0.7, ease: 'power3.out', delay: 0.15 }
+    );
   }, []);
 
   return (
-    <section style={{
-      minHeight: '92vh', display: 'flex', alignItems: 'center',
-      padding: '60px 60px 80px',
-      background: 'radial-gradient(ellipse 70% 60% at 75% 40%, rgba(193,98,63,0.07) 0%, transparent 70%), radial-gradient(ellipse 50% 50% at 20% 80%, rgba(122,158,126,0.06) 0%, transparent 60%)',
-      gap: 60,
+    <section ref={ref} style={{
+      minHeight: '100vh',
+      padding: '0 4vw 0 5vw',
+      display: 'grid',
+      gridTemplateColumns: '36% 1fr',
+      gap: '4vw',
+      alignItems: 'center',
+      maxWidth: 1600,
+      margin: '0 auto',
+      boxSizing: 'border-box' as const,
     }}>
-      {/* left: text */}
-      <div ref={textRef} style={{ flex: '0 0 auto', maxWidth: 520 }}>
-        <div data-in style={{
-          display: 'inline-flex', alignItems: 'center', gap: 7,
-          background: 'var(--accent-soft)', color: 'var(--accent)',
-          padding: '5px 14px', borderRadius: 999, fontSize: 12, fontWeight: 600,
-          marginBottom: 24, border: '1px solid rgba(193,98,63,0.2)',
-        }}>
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', display: 'inline-block' }} />
+      {/* ── Left: text ── */}
+      <div>
+        <div data-in style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 999, background: 'color-mix(in srgb, var(--accent) 14%, var(--bg))', border: '1px solid color-mix(in srgb, var(--accent) 30%, transparent)', fontFamily: 'var(--font-mono)', fontSize: 10.5, letterSpacing: '0.04em', color: 'var(--accent)', marginBottom: 16 }}>
+          <span className="ld-dot" style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--accent)', display: 'inline-block' }} />
           Designed for slow, deep work
         </div>
 
-        <h1 data-in style={{
-          fontFamily: 'var(--font-display)', fontSize: 'clamp(42px, 5vw, 64px)',
-          lineHeight: 1.08, letterSpacing: '-0.03em', margin: '0 0 22px',
-          color: 'var(--ink)',
-        }}>
+        <h1 data-in style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(36px,4vw,54px)', lineHeight: 1.08, letterSpacing: '-0.03em', margin: '0 0 14px', fontWeight: 400 }}>
           Your cozy corner<br />
           for <em style={{ color: 'var(--accent)' }}>deep work</em>
         </h1>
 
-        <p data-in style={{
-          fontSize: 17, lineHeight: 1.75, color: 'var(--ink-soft)',
-          margin: '0 0 36px', maxWidth: 440,
-        }}>
+        <p data-in style={{ fontSize: 14.5, color: 'var(--ink-soft)', margin: '0 0 24px', lineHeight: 1.65 }}>
           A warm, beautiful workspace that helps you focus on what matters — without the noise, overwhelm, or anxiety that most productivity apps create.
         </p>
 
-        <div data-in style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 44 }}>
-          <button onClick={onGetStarted} className="btn btn-primary" style={{ fontSize: 15, padding: '12px 28px', borderRadius: 12 }}>
+        <div data-in style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' as const, marginBottom: 32 }}>
+          <button onClick={() => onCta('signup')} className="btn btn-primary" style={{ padding: '10px 20px', fontSize: 13.5, borderRadius: 999 }}>
             Get started free →
           </button>
-          <button onClick={onGetStarted} className="btn" style={{ fontSize: 15, padding: '12px 22px', borderRadius: 12 }}>
+          <button onClick={() => onCta('login')} className="btn" style={{ padding: '10px 18px', fontSize: 13.5, borderRadius: 999, background: 'var(--bg)', border: '1.5px solid var(--line)' }}>
             Sign in
           </button>
         </div>
 
-        <div data-in style={{ display: 'flex', gap: 28, flexWrap: 'wrap' }}>
-          {[
-            { n: '6', label: 'powerful pages' },
-            { n: '∞', label: 'tasks & habits' },
-            { n: '100%', label: 'distraction free' },
-          ].map(s => (
-            <div key={s.label}>
-              <div style={{ fontSize: 26, fontWeight: 700, fontFamily: 'var(--font-display)', color: 'var(--ink)', lineHeight: 1 }}>{s.n}</div>
-              <div style={{ fontSize: 11, color: 'var(--ink-faint)', marginTop: 2, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{s.label}</div>
+        <div data-in style={{ display: 'flex', gap: 24, fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-faint)', textTransform: 'uppercase' as const, letterSpacing: '0.1em' }}>
+          {[['6', 'Powerful pages'], ['∞', 'Tasks & habits'], ['100%', 'Distraction free']].map(([val, label]) => (
+            <div key={label}>
+              <div style={{ fontSize: 22, fontFamily: 'var(--font-display)', color: 'var(--ink)', letterSpacing: '-0.025em', lineHeight: 1, marginBottom: 4 }}>{val}</div>
+              <div>{label}</div>
             </div>
           ))}
         </div>
       </div>
 
-      {/* right: mockup */}
-      <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-        <AppMockup />
+      {/* ── Right: animated demo ── */}
+      <div data-in style={{ position: 'relative' }}>
+        <div style={{ position: 'absolute', inset: '40px 60px -20px', background: 'radial-gradient(ellipse at 55% 50%, rgba(193,98,63,0.14), transparent 65%)', filter: 'blur(40px)', pointerEvents: 'none', zIndex: 0 }} />
+        <div style={{ position: 'relative', zIndex: 1 }}>
+          <AnimatedDemo />
+        </div>
       </div>
     </section>
   );
 }
 
-/* ── Feature strip ───────────────────────────────────────── */
-function FeatureStrip() {
-  const ref = useRef<HTMLDivElement>(null);
+/* ── Features ────────────────────────────────────────────── */
+const FEAT_TASKS = [
+  { label: 'Pick type pairing', tag: 'terra', done: true },
+  { label: 'Sketch hero variants', tag: 'sage', done: false },
+  { label: 'Export pebble icons', tag: 'butter', done: false },
+];
+const TAG_COLORS: Record<string, { bg: string; fg: string }> = {
+  terra:  { bg: 'var(--accent-soft)',  fg: 'var(--accent)' },
+  sage:   { bg: 'var(--sage-soft)',    fg: '#4a7a4e' },
+  butter: { bg: 'var(--butter-soft)',  fg: '#7a5820' },
+};
+
+function Features() {
+  const ref = useRef<HTMLElement>(null);
   useEffect(() => {
-    const obs = new IntersectionObserver(entries => {
-      if (entries[0].isIntersecting) {
-        gsap.fromTo(ref.current!.children, { opacity: 0, y: 12 }, { opacity: 1, y: 0, stagger: 0.06, duration: 0.4 });
-        obs.disconnect();
-      }
-    }, { threshold: 0.3 });
-    if (ref.current) obs.observe(ref.current);
-    return () => obs.disconnect();
-  }, []);
-
-  return (
-    <div style={{ borderTop: '1px solid var(--line)', borderBottom: '1px solid var(--line)', background: 'var(--bg-elev)', padding: '20px 60px' }}>
-      <div ref={ref} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 40, flexWrap: 'wrap' }}>
-        {FEATURES.map(f => (
-          <div key={f.label} style={{ display: 'flex', alignItems: 'center', gap: 8, opacity: 0 }}>
-            <span style={{ fontSize: 18 }}>{f.emoji}</span>
-            <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--ink-soft)' }}>{f.label}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/* ── Features section ────────────────────────────────────── */
-function FeaturesSection() {
-  const secRef = useRef<HTMLElement>(null);
-  const gridRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const obs = new IntersectionObserver(entries => {
-      if (entries[0].isIntersecting) {
-        const cards = gridRef.current!.querySelectorAll('.feat-card');
-        gsap.fromTo(cards, { y: 32, opacity: 0 }, { y: 0, opacity: 1, stagger: 0.08, duration: 0.55, ease: 'power2.out' });
+    const obs = new IntersectionObserver(([e]) => {
+      if (e.isIntersecting) {
+        gsap.fromTo(ref.current!.querySelectorAll('.ld-feat'),
+          { y: 28, opacity: 0 },
+          { y: 0, opacity: 1, stagger: 0.07, duration: 0.5, ease: 'power2.out' }
+        );
         obs.disconnect();
       }
     }, { threshold: 0.1 });
-    if (secRef.current) obs.observe(secRef.current);
+    if (ref.current) obs.observe(ref.current);
     return () => obs.disconnect();
   }, []);
 
+  const card = (extra = {}): React.CSSProperties => ({
+    background: 'var(--bg-elev)', border: '1px solid var(--line)', borderRadius: 18,
+    padding: '20px', display: 'flex', flexDirection: 'column', minHeight: 200, position: 'relative',
+    overflow: 'hidden', transition: 'transform 0.22s, box-shadow 0.22s', ...extra,
+  });
+
   return (
-    <section id="features" ref={secRef} style={{ padding: '90px 60px', background: 'var(--bg)' }}>
-      <div style={{ textAlign: 'center', marginBottom: 56 }}>
-        <div style={{ display: 'inline-block', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--accent)', fontFamily: 'var(--font-mono)', marginBottom: 14 }}>Everything in one place</div>
-        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(32px, 4vw, 48px)', letterSpacing: '-0.02em', margin: '0 0 16px', color: 'var(--ink)' }}>
-          Built for the way<br /><em style={{ color: 'var(--accent)' }}>humans</em> actually work
+    <section ref={ref} id="features" style={{ background: '#f7ede8' }}>
+      <div style={{ padding: '72px 48px', maxWidth: 1280, margin: '0 auto' }}>
+      <div style={{ textAlign: 'center', marginBottom: 36 }}>
+        <div style={{ marginBottom: 10, fontFamily: 'var(--font-mono)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.15em', color: 'var(--accent)' }}>— Features</div>
+        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(28px,4vw,44px)', lineHeight: 1.05, letterSpacing: '-0.02em', margin: '0 0 12px', fontWeight: 400 }}>
+          Designed for <em style={{ color: 'var(--accent)' }}>quiet, deliberate</em> work.
         </h2>
-        <p style={{ fontSize: 16, color: 'var(--ink-soft)', maxWidth: 480, margin: '0 auto', lineHeight: 1.7 }}>
-          Task management, habit tracking, OCR photo-to-text, calendar, notes, and projects — all designed to work together seamlessly.
-        </p>
+        <p style={{ fontSize: 15, color: 'var(--ink-soft)', margin: 0 }}>Six pages. One purpose. Everything earns its place.</p>
       </div>
 
-      <div ref={gridRef} style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20, maxWidth: 980, margin: '0 auto' }}>
-        {FEATURES.map((f) => (
-          <div key={f.label} className="feat-card" style={{
-            background: 'var(--bg-elev)', border: '1px solid var(--line)',
-            borderRadius: 18, padding: '24px 22px',
-            opacity: 0, transition: 'transform 0.2s, box-shadow 0.2s',
-            cursor: 'default',
-          }}
-            onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 16px 40px rgba(0,0,0,0.08)'; e.currentTarget.style.borderColor = f.color + '55'; }}
-            onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.borderColor = 'var(--line)'; }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-              <div style={{
-                width: 42, height: 42, borderRadius: 12, flexShrink: 0,
-                background: f.color + '18', display: 'grid', placeItems: 'center',
-              }}>
-                <Icon name={f.icon} size={18} style={{ color: f.color }} />
-              </div>
-              <div>
-                <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)' }}>{f.label}</div>
-                <div style={{ width: 20, height: 2, borderRadius: 1, background: f.color, marginTop: 4 }} />
-              </div>
-            </div>
-            <p style={{ fontSize: 13, color: 'var(--ink-soft)', lineHeight: 1.65, margin: 0 }}>{f.desc}</p>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: 12 }}>
+
+        {/* Today's tasks — large */}
+        <div className="ld-feat" style={{ ...card(), gridColumn: 'span 5', minHeight: 260 }}>
+          <div style={{ width: 34, height: 34, borderRadius: 10, background: 'var(--accent-soft)', display: 'grid', placeItems: 'center', marginBottom: 12 }}>
+            <Icon name="check" size={16} style={{ color: 'var(--accent)' }} />
           </div>
-        ))}
+          <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 21, letterSpacing: '-0.015em', margin: '0 0 5px', fontWeight: 400 }}>Today, with intention.</h3>
+          <p style={{ color: 'var(--ink-soft)', fontSize: 13, margin: '0 0 14px', lineHeight: 1.55 }}>Drag to reorder, check to celebrate. Feel the small joy of finishing.</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 5, flex: 1 }}>
+            {FEAT_TASKS.map((t, i) => {
+              const tc = TAG_COLORS[t.tag];
+              return (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '6px 9px', background: 'var(--bg)', border: '1px solid var(--line)', borderRadius: 7 }}>
+                  <div style={{ width: 13, height: 13, borderRadius: 4, border: `1.4px solid ${t.done ? 'var(--accent)' : 'var(--line)'}`, background: t.done ? 'var(--accent)' : 'transparent', display: 'grid', placeItems: 'center', flexShrink: 0 }}>
+                    {t.done && <Icon name="check" size={8} style={{ color: '#fff' }} />}
+                  </div>
+                  <span style={{ flex: 1, fontSize: 11.5, color: t.done ? 'var(--ink-faint)' : 'var(--ink)', textDecoration: t.done ? 'line-through' : 'none' }}>{t.label}</span>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9.5, padding: '1px 7px', borderRadius: 999, background: tc.bg, color: tc.fg }}>{t.tag === 'terra' ? 'Cozy Notes' : t.tag === 'sage' ? 'Folio v3' : 'Pebble'}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Habits */}
+        <div className="ld-feat" style={{ ...card({ background: 'var(--sage-soft)', borderColor: 'var(--sage)' }), gridColumn: 'span 3' }}>
+          <div style={{ width: 34, height: 34, borderRadius: 10, background: 'rgba(122,158,126,0.25)', display: 'grid', placeItems: 'center', marginBottom: 12 }}>
+            <Icon name="habits" size={16} style={{ color: '#4a7a4e' }} />
+          </div>
+          <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 19, letterSpacing: '-0.015em', margin: '0 0 5px', fontWeight: 400 }}>Habits, gently tracked.</h3>
+          <p style={{ color: 'var(--ink-soft)', fontSize: 12.5, margin: '0 0 12px', lineHeight: 1.5 }}>30-day heatmap that rewards consistency, not perfection.</p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: 3, flex: 1, alignContent: 'start' }}>
+            {Array.from({ length: 30 }).map((_, i) => {
+              const v = (i * 73) % 4;
+              const opacity = v === 0 ? 0.12 : v === 1 ? 0.35 : v === 2 ? 0.65 : 1;
+              return <div key={i} style={{ aspectRatio: '1', borderRadius: 2, background: `rgba(74,122,78,${opacity})` }} />;
+            })}
+          </div>
+        </div>
+
+        {/* Calendar */}
+        <div className="ld-feat" style={{ ...card({ background: 'var(--plum-soft)', borderColor: 'var(--plum)' }), gridColumn: 'span 4' }}>
+          <div style={{ width: 34, height: 34, borderRadius: 10, background: 'rgba(139,92,117,0.2)', display: 'grid', placeItems: 'center', marginBottom: 12 }}>
+            <Icon name="calendar" size={16} style={{ color: 'var(--plum)' }} />
+          </div>
+          <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 19, letterSpacing: '-0.015em', margin: '0 0 5px', fontWeight: 400 }}>Calendar that whispers.</h3>
+          <p style={{ color: 'var(--ink-soft)', fontSize: 12.5, margin: '0 0 12px', lineHeight: 1.5 }}>Monthly view that shows the shape of your time — no nagging.</p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 3, fontFamily: 'var(--font-mono)', fontSize: 9, flex: 1, alignContent: 'start' }}>
+            {Array.from({ length: 28 }).map((_, i) => {
+              const hasEvent = [3, 6, 10, 14, 17, 22, 25].includes(i);
+              const isToday = i === 11;
+              return (
+                <div key={i} style={{ aspectRatio: '1', borderRadius: 4, display: 'grid', placeItems: 'center', background: isToday ? 'var(--plum)' : hasEvent ? 'rgba(139,92,117,0.18)' : 'var(--bg)', border: '1px solid var(--line-soft)', color: isToday ? '#fff' : hasEvent ? 'var(--plum)' : 'var(--ink-faint)', fontWeight: hasEvent || isToday ? 600 : 400 }}>
+                  {i + 1}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Notes */}
+        <div className="ld-feat" style={{ ...card({ background: 'var(--butter-soft)', borderColor: 'var(--butter)' }), gridColumn: 'span 4' }}>
+          <div style={{ width: 34, height: 34, borderRadius: 10, background: 'rgba(201,148,58,0.2)', display: 'grid', placeItems: 'center', marginBottom: 12 }}>
+            <Icon name="notes" size={16} style={{ color: '#7a5820' }} />
+          </div>
+          <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 19, letterSpacing: '-0.015em', margin: '0 0 5px', fontWeight: 400 }}>Notes &amp; journal.</h3>
+          <p style={{ color: 'var(--ink-soft)', fontSize: 12.5, margin: '0 0 12px', lineHeight: 1.5 }}>Serif-rich editor for thinking out loud. No blocks, no ceremony.</p>
+          <div style={{ background: 'var(--bg)', border: '1px solid var(--line)', borderRadius: 8, padding: '9px 11px', flex: 1 }}>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 8.5, color: 'var(--ink-faint)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 4 }}>updated 2h ago</div>
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: 15, lineHeight: 1.2, marginBottom: 5 }}>Cozy Notes — kickoff thoughts</div>
+            <div style={{ fontSize: 11.5, color: 'var(--ink-soft)', lineHeight: 1.5 }}>What if the canvas felt like a warm lamp at 11pm? Soft cream, deep ink…</div>
+          </div>
+        </div>
+
+        {/* Projects */}
+        <div className="ld-feat" style={{ ...card({ background: 'var(--sky-soft)', borderColor: 'var(--sky)' }), gridColumn: 'span 4' }}>
+          <div style={{ width: 34, height: 34, borderRadius: 10, background: 'rgba(91,143,191,0.2)', display: 'grid', placeItems: 'center', marginBottom: 12 }}>
+            <Icon name="projects" size={16} style={{ color: '#3a6a99' }} />
+          </div>
+          <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 19, letterSpacing: '-0.015em', margin: '0 0 5px', fontWeight: 400 }}>Projects, properly.</h3>
+          <p style={{ color: 'var(--ink-soft)', fontSize: 12.5, margin: '0 0 12px', lineHeight: 1.5 }}>Group tasks by intention. Watch progress build over weeks.</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1 }}>
+            {[{ n: 'Cozy Notes App', p: 72, c: 'var(--accent)' }, { n: 'Folio v3 Redesign', p: 45, c: '#4a7a4e' }, { n: 'Pebble Iconset', p: 90, c: '#c9943a' }].map(p => (
+              <div key={p.n} style={{ padding: '7px 9px', background: 'var(--bg)', border: '1px solid var(--line)', borderRadius: 7 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 500, marginBottom: 4 }}>
+                  <span>{p.n}</span><span style={{ fontFamily: 'var(--font-mono)', color: 'var(--ink-faint)' }}>{p.p}%</span>
+                </div>
+                <div style={{ height: 3, background: 'var(--bg-sunk)', borderRadius: 2, overflow: 'hidden' }}>
+                  <div style={{ width: `${p.p}%`, height: '100%', background: p.c, borderRadius: 2 }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Photo to Tasks */}
+        <div className="ld-feat" style={{ ...card(), gridColumn: 'span 4' }}>
+          <div style={{ width: 34, height: 34, borderRadius: 10, background: 'rgba(193,98,63,0.12)', display: 'grid', placeItems: 'center', marginBottom: 12 }}>
+            <Icon name="camera" size={16} style={{ color: 'var(--accent)' }} />
+          </div>
+          <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 19, letterSpacing: '-0.015em', margin: '0 0 5px', fontWeight: 400 }}>Photo to Tasks.</h3>
+          <p style={{ color: 'var(--ink-soft)', fontSize: 12.5, lineHeight: 1.5, margin: 0 }}>Snap a photo of any handwritten or printed list. OCR extracts tasks automatically — 100% free, no backend needed.</p>
+          <div style={{ marginTop: 14, padding: '8px 10px', background: 'var(--bg-sunk)', borderRadius: 8, border: '1px solid var(--line)', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ width: 28, height: 28, borderRadius: 7, background: 'var(--accent-soft)', display: 'grid', placeItems: 'center', flexShrink: 0 }}>
+              <Icon name="camera" size={13} style={{ color: 'var(--accent)' }} />
+            </div>
+            <div>
+              <div style={{ fontSize: 11.5, fontWeight: 600, marginBottom: 1 }}>Tesseract OCR</div>
+              <div style={{ fontSize: 10.5, color: 'var(--ink-faint)' }}>Runs entirely in-browser · no upload</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Customization — wide */}
+        <div className="ld-feat" style={{ ...card({ flexDirection: 'row', alignItems: 'center', gap: 32 }), gridColumn: 'span 12', minHeight: 150 }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ width: 34, height: 34, borderRadius: 10, background: 'var(--accent-soft)', display: 'grid', placeItems: 'center', marginBottom: 12 }}>
+              <Icon name="settings" size={16} style={{ color: 'var(--accent)' }} />
+            </div>
+            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 21, letterSpacing: '-0.015em', margin: '0 0 7px', fontWeight: 400 }}>Built for <em style={{ color: 'var(--accent)', fontStyle: 'italic' }}>your</em> rhythm.</h3>
+            <p style={{ color: 'var(--ink-soft)', fontSize: 13, maxWidth: 400, lineHeight: 1.6, margin: 0 }}>Six accent colors, three densities, three dashboard layouts, light/dark themes, background patterns. No two slowdesks look alike.</p>
+          </div>
+          <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, alignSelf: 'stretch', padding: '8px 0' }}>
+            {[
+              { bg: '#f0e6d8', accent: '#c1623f', label: 'Light · Terracotta', dark: false },
+              { bg: '#1c1814', accent: '#8fb894', label: 'Dark · Sage',        dark: true  },
+              { bg: '#f0e6d8', accent: '#8b5c75', label: 'Light · Plum',       dark: false },
+            ].map((s, i) => (
+              <div key={i} style={{ background: s.bg, borderRadius: 10, padding: 10, border: '1px solid var(--line)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                <div style={{ width: 18, height: 18, borderRadius: 5, background: s.accent }} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 3, margin: '8px 0' }}>
+                  <div style={{ height: 3, background: s.accent, opacity: 0.85, borderRadius: 2, width: '70%' }} />
+                  <div style={{ height: 3, background: s.dark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)', borderRadius: 2, width: '90%' }} />
+                  <div style={{ height: 3, background: s.dark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)', borderRadius: 2, width: '60%' }} />
+                </div>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 8, textTransform: 'uppercase', letterSpacing: '0.08em', color: s.dark ? 'rgba(255,255,255,0.45)' : 'var(--ink-faint)' }}>{s.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
       </div>
     </section>
   );
 }
 
-/* ── How it works ────────────────────────────────────────── */
-function HowItWorks() {
-  const ref = useRef<HTMLDivElement>(null);
+/* ── About ───────────────────────────────────────────────── */
+function About() {
+  const ref = useRef<HTMLElement>(null);
   useEffect(() => {
-    const obs = new IntersectionObserver(entries => {
-      if (entries[0].isIntersecting) {
-        gsap.fromTo(ref.current!.querySelectorAll('.step-card'), { x: -24, opacity: 0 }, { x: 0, opacity: 1, stagger: 0.12, duration: 0.5, ease: 'power2.out' });
+    const obs = new IntersectionObserver(([e]) => {
+      if (e.isIntersecting) {
+        gsap.fromTo(ref.current!.querySelectorAll('[data-p]'),
+          { y: 18, opacity: 0 },
+          { y: 0, opacity: 1, stagger: 0.1, duration: 0.55, ease: 'power2.out' }
+        );
         obs.disconnect();
       }
-    }, { threshold: 0.2 });
+    }, { threshold: 0.15 });
     if (ref.current) obs.observe(ref.current);
     return () => obs.disconnect();
   }, []);
 
   return (
-    <section id="how-it-works" style={{ padding: '80px 60px', background: 'var(--bg-elev)', borderTop: '1px solid var(--line)' }}>
-      <div style={{ maxWidth: 780, margin: '0 auto' }}>
-        <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--accent)', fontFamily: 'var(--font-mono)', marginBottom: 14 }}>How it works</div>
-        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(28px, 3.5vw, 42px)', letterSpacing: '-0.02em', margin: '0 0 48px', color: 'var(--ink)' }}>
-          Three steps to a calmer day
+    <section ref={ref} id="about" style={{
+      padding: '96px 48px 100px',
+      textAlign: 'center',
+      background: 'radial-gradient(ellipse at 20% 60%, #e8cfc4 0%, #edddd5 25%, #ede6dd 55%, var(--bg) 80%)',
+      position: 'relative',
+    }}>
+      <div style={{ maxWidth: 480, margin: '0 auto' }}>
+
+        {/* label */}
+        <div data-p style={{ fontFamily: 'var(--font-mono)', fontSize: 10.5, textTransform: 'uppercase' as const, letterSpacing: '0.22em', color: 'rgba(120,80,55,0.65)', marginBottom: 14 }}>
+          About Slowdesk
+        </div>
+
+        {/* two quote drops */}
+        <div data-p style={{ display: 'flex', gap: 6, justifyContent: 'center', marginBottom: 32 }}>
+          {[0, 1].map(i => (
+            <svg key={i} width="16" height="26" viewBox="0 0 16 26" fill="var(--accent)">
+              <path d="M8 0 C3.6 0 1 4.2 1 9 C1 13.8 4 17 8 17 C10.2 17 12 15.8 12.8 14 C12.5 18 10.5 22.5 8 24.5 L8 26 C12.5 24 15 19.5 15 13 C15 5.5 12 0 8 0Z" />
+            </svg>
+          ))}
+        </div>
+
+        {/* headline */}
+        <h2 data-p style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 'clamp(34px,4vw,50px)', lineHeight: 1.18, letterSpacing: '-0.015em', margin: '0 0 36px', fontWeight: 400, color: 'var(--ink)' }}>
+          Slow is not lazy.<br />It's intentional.
         </h2>
-        <div ref={ref} style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 32 }}>
-          {STEPS.map((s, i) => (
-            <div key={s.n} className="step-card" style={{ opacity: 0 }}>
-              <div style={{
-                fontSize: 32, fontFamily: 'var(--font-display)', fontStyle: 'italic',
-                color: 'var(--accent)', opacity: 0.25, marginBottom: 16, lineHeight: 1,
-              }}>{s.n}</div>
-              <h3 style={{ fontSize: 18, fontWeight: 600, margin: '0 0 10px', color: 'var(--ink)' }}>{s.title}</h3>
-              <p style={{ fontSize: 13, color: 'var(--ink-soft)', lineHeight: 1.65, margin: 0 }}>{s.desc}</p>
-              {i < STEPS.length - 1 && (
-                <div style={{ marginTop: 20, height: 1, background: 'linear-gradient(to right, var(--line), transparent)' }} />
-              )}
-            </div>
+
+        {/* body */}
+        <p data-p style={{ fontSize: 14.5, color: 'var(--ink-soft)', lineHeight: 1.78, margin: '0 0 20px' }}>
+          We built slowdesk because most productivity apps feel like factories. slowdesk feels like your favorite corner of a warm café — cozy, purposeful, and deeply human.
+        </p>
+        <p data-p style={{ fontSize: 14.5, color: 'var(--ink-soft)', lineHeight: 1.78, margin: '0 0 44px' }}>
+          There are no gamified streaks pushing you to burn out. No notification floods. No overwhelming dashboards. Just a calm space where you can plan your day, build good habits, and come back to what matters. Do less, better.
+        </p>
+
+        {/* dots */}
+        <div data-p style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+          {['var(--accent)', 'var(--sage)', 'var(--plum)', 'var(--sky)', 'var(--butter)'].map(c => (
+            <div key={c} style={{ width: 9, height: 9, borderRadius: '50%', background: c, opacity: 0.8 }} />
           ))}
         </div>
       </div>
@@ -408,13 +550,16 @@ function HowItWorks() {
   );
 }
 
-/* ── About / Philosophy section ──────────────────────────── */
-function AboutSection() {
+/* ── CTA section ─────────────────────────────────────────── */
+function CtaSection({ onCta }: { onCta: (tab: 'login' | 'signup') => void }) {
   const ref = useRef<HTMLElement>(null);
   useEffect(() => {
-    const obs = new IntersectionObserver(entries => {
-      if (entries[0].isIntersecting) {
-        gsap.fromTo(ref.current!.querySelectorAll('[data-p]'), { y: 24, opacity: 0 }, { y: 0, opacity: 1, stagger: 0.1, duration: 0.6, ease: 'power2.out' });
+    const obs = new IntersectionObserver(([e]) => {
+      if (e.isIntersecting) {
+        gsap.fromTo(ref.current!.querySelectorAll('[data-c]'),
+          { y: 28, opacity: 0 },
+          { y: 0, opacity: 1, stagger: 0.1, duration: 0.6, ease: 'power3.out' }
+        );
         obs.disconnect();
       }
     }, { threshold: 0.2 });
@@ -423,39 +568,35 @@ function AboutSection() {
   }, []);
 
   return (
-    <section id="about" ref={ref} style={{
-      padding: '100px 60px', textAlign: 'center',
-      background: 'linear-gradient(180deg, var(--bg) 0%, var(--accent-soft) 50%, var(--bg) 100%)',
-      borderTop: '1px solid var(--line)', borderBottom: '1px solid var(--line)',
-    }}>
-      <div style={{ maxWidth: 640, margin: '0 auto' }}>
-        <div data-p style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--accent)', fontFamily: 'var(--font-mono)', marginBottom: 14 }}>About slowdesk</div>
+    <section ref={ref} style={{ padding: '88px 48px 96px', textAlign: 'center', background: '#f5ebe3', borderTop: '1px solid var(--line)' }}>
+      <div style={{ maxWidth: 560, margin: '0 auto' }}>
+        <div data-c style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '5px 14px', borderRadius: 999, background: 'var(--accent-soft)', border: '1px solid rgba(193,98,63,0.2)', fontSize: 12, color: 'var(--accent)', marginBottom: 22, fontFamily: 'var(--font-sans)' }}>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', display: 'inline-block' }} />
+          Ready to slow down?
+        </div>
 
-        {/* big decorative quote mark */}
-        <div data-p style={{
-          fontFamily: 'var(--font-display)', fontSize: 120, lineHeight: 0.6,
-          color: 'var(--accent)', opacity: 0.18, marginBottom: 8, userSelect: 'none',
-        }}>"</div>
+        <h2 data-c style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(32px,4.5vw,50px)', letterSpacing: '-0.025em', margin: '0 0 18px', lineHeight: 1.15, fontWeight: 400 }}>
+          Start your cozy<br /><em style={{ color: 'var(--accent)' }}>workspace</em> today
+        </h2>
 
-        <blockquote data-p style={{
-          fontFamily: 'var(--font-display)', fontSize: 'clamp(24px, 3.5vw, 38px)',
-          fontStyle: 'italic', lineHeight: 1.35, letterSpacing: '-0.01em',
-          color: 'var(--ink)', margin: '0 0 32px',
-        }}>
-          Slow is not lazy.<br />It's intentional.
-        </blockquote>
-
-        <p data-p style={{ fontSize: 15, color: 'var(--ink-soft)', lineHeight: 1.8, maxWidth: 500, margin: '0 auto 24px' }}>
-          We built slowdesk because most productivity apps feel like factories. slowdesk feels like your favorite corner of a warm café — cozy, purposeful, and deeply human.
+        <p data-c style={{ fontSize: 15, color: 'var(--ink-soft)', lineHeight: 1.65, margin: '0 0 36px' }}>
+          Free forever. No credit card needed. Just a calm place to do your best work.
         </p>
 
-        <p data-p style={{ fontSize: 15, color: 'var(--ink-soft)', lineHeight: 1.8, maxWidth: 500, margin: '0 auto 40px' }}>
-          There are no gamified streaks pushing you to burn out. No notification floods. No overwhelming dashboards. Just a calm space where you can plan your day, build good habits, and come back to what matters. Do less, better.
-        </p>
+        <div data-c style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' as const, marginBottom: 26 }}>
+          <button onClick={() => onCta('signup')} className="btn btn-primary" style={{ fontSize: 14, padding: '12px 28px', borderRadius: 999 }}>
+            Create free account →
+          </button>
+          <button onClick={() => onCta('login')} style={{ fontSize: 14, padding: '12px 24px', borderRadius: 999, background: 'transparent', border: '1.5px solid var(--ink)', color: 'var(--ink)', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 500 }}>
+            Sign in
+          </button>
+        </div>
 
-        <div data-p style={{ display: 'flex', justifyContent: 'center', gap: 6 }}>
-          {['#c1623f','#7a9e7e','#8b5c75','#c9943a','#5b8fbf'].map(c => (
-            <div key={c} style={{ width: 10, height: 10, borderRadius: '50%', background: c, opacity: 0.7 }} />
+        <div data-c style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 24 }}>
+          {['No setup required', 'Works on any device', 'Completely free'].map(l => (
+            <div key={l} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--ink-faint)' }}>
+              <span>✓</span> {l}
+            </div>
           ))}
         </div>
       </div>
@@ -465,101 +606,24 @@ function AboutSection() {
 
 /* ── Testimonials ────────────────────────────────────────── */
 function Testimonials() {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const obs = new IntersectionObserver(entries => {
-      if (entries[0].isIntersecting) {
-        gsap.fromTo(ref.current!.querySelectorAll('.tcard'), { y: 28, opacity: 0 }, { y: 0, opacity: 1, stagger: 0.1, duration: 0.5, ease: 'power2.out' });
-        obs.disconnect();
-      }
-    }, { threshold: 0.2 });
-    if (ref.current) obs.observe(ref.current);
-    return () => obs.disconnect();
-  }, []);
-
-  const COLORS = ['var(--accent-soft)', '#ddeede', '#eed8e8'];
-
+  const CARDS = [
+    { quote: '"The first productivity app I actually want to open in the morning."', role: 'Designer, Remote', bg: '#f5ddd8', accent: '#c1623f' },
+    { quote: '"It feels like journaling but for your whole life workflow."',          role: 'Indie Hacker',    bg: '#d8ede0', accent: '#4a7a4e' },
+    { quote: '"Finally, a productivity app that doesn\'t give me anxiety."',          role: 'Creative Director', bg: '#e8d8ec', accent: '#8b5c75' },
+  ];
   return (
-    <section style={{ padding: '80px 60px', background: 'var(--bg)' }}>
-      <div style={{ textAlign: 'center', marginBottom: 48 }}>
-        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(28px, 3.5vw, 40px)', letterSpacing: '-0.02em', margin: 0, color: 'var(--ink)' }}>
-          Loved by slow workers
-        </h2>
-      </div>
-      <div ref={ref} style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20, maxWidth: 860, margin: '0 auto' }}>
-        {QUOTES.map((q, i) => (
-          <div key={i} className="tcard" style={{
-            background: COLORS[i], border: '1px solid var(--line)',
-            borderRadius: 18, padding: '28px 24px', opacity: 0,
-          }}>
-            <div style={{ fontFamily: 'var(--font-display)', fontSize: 48, lineHeight: 0.8, color: 'var(--accent)', opacity: 0.3, marginBottom: 12 }}>"</div>
-            <p style={{ fontSize: 14, lineHeight: 1.7, fontStyle: 'italic', color: 'var(--ink)', margin: '0 0 20px' }}>"{q.text}"</p>
-            <div style={{ fontSize: 11, color: 'var(--ink-faint)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>— {q.author}</div>
+    <section style={{ padding: '80px 48px 88px', background: 'var(--bg)', borderTop: '1px solid var(--line)' }}>
+      <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(28px,3.5vw,42px)', fontWeight: 400, letterSpacing: '-0.02em', textAlign: 'center', margin: '0 0 52px', color: 'var(--ink)' }}>
+        Loved by slow workers
+      </h2>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 20, maxWidth: 1100, margin: '0 auto' }}>
+        {CARDS.map((c, i) => (
+          <div key={i} style={{ background: c.bg, borderRadius: 18, padding: '32px 28px 28px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+            <span style={{ fontFamily: 'var(--font-display)', fontSize: 22, color: c.accent, lineHeight: 1, fontStyle: 'italic' }}>"</span>
+            <p style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 17, lineHeight: 1.65, color: '#2a1a12', margin: 0, flex: 1 }}>{c.quote}</p>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10.5, textTransform: 'uppercase' as const, letterSpacing: '0.12em', color: 'rgba(40,25,15,0.55)' }}>— {c.role}</div>
           </div>
         ))}
-      </div>
-    </section>
-  );
-}
-
-/* ── CTA section (replaces embedded auth) ────────────────── */
-function CtaSection({ onGetStarted }: { onGetStarted: () => void }) {
-  const ref = useRef<HTMLElement>(null);
-  useEffect(() => {
-    const obs = new IntersectionObserver(entries => {
-      if (entries[0].isIntersecting) {
-        gsap.fromTo(ref.current!.querySelectorAll('[data-cta]'), { y: 28, opacity: 0 }, { y: 0, opacity: 1, stagger: 0.1, duration: 0.6, ease: 'power3.out' });
-        obs.disconnect();
-      }
-    }, { threshold: 0.2 });
-    if (ref.current) obs.observe(ref.current);
-    return () => obs.disconnect();
-  }, []);
-
-  return (
-    <section ref={ref} style={{
-      padding: '100px 60px 120px', textAlign: 'center',
-      background: 'var(--bg-elev)', borderTop: '1px solid var(--line)',
-    }}>
-      <div style={{ maxWidth: 540, margin: '0 auto' }}>
-        <div data-cta style={{
-          display: 'inline-flex', alignItems: 'center', gap: 7,
-          background: 'var(--accent-soft)', color: 'var(--accent)',
-          padding: '5px 14px', borderRadius: 999, fontSize: 12, fontWeight: 600,
-          marginBottom: 24, border: '1px solid rgba(193,98,63,0.2)',
-        }}>
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', display: 'inline-block' }} />
-          Ready to slow down?
-        </div>
-
-        <h2 data-cta style={{
-          fontFamily: 'var(--font-display)', fontSize: 'clamp(32px, 4vw, 52px)',
-          letterSpacing: '-0.03em', margin: '0 0 18px', color: 'var(--ink)', lineHeight: 1.1,
-        }}>
-          Start your cozy<br /><em style={{ color: 'var(--accent)' }}>workspace</em> today
-        </h2>
-
-        <p data-cta style={{ fontSize: 16, color: 'var(--ink-soft)', lineHeight: 1.75, margin: '0 0 40px' }}>
-          Free forever. No credit card needed. Just a calm place to do your best work.
-        </p>
-
-        <div data-cta style={{ display: 'flex', gap: 14, justifyContent: 'center', flexWrap: 'wrap' }}>
-          <button onClick={onGetStarted} className="btn btn-primary" style={{ fontSize: 16, padding: '14px 32px', borderRadius: 14 }}>
-            Create free account →
-          </button>
-          <button onClick={onGetStarted} className="btn" style={{ fontSize: 16, padding: '14px 26px', borderRadius: 14 }}>
-            Sign in
-          </button>
-        </div>
-
-        <div data-cta style={{ marginTop: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 20, flexWrap: 'wrap' }}>
-          {['No setup required', 'Works on any device', 'Completely free'].map(label => (
-            <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--ink-faint)' }}>
-              <span style={{ color: '#7a9e7e', fontSize: 14 }}>✓</span>
-              {label}
-            </div>
-          ))}
-        </div>
       </div>
     </section>
   );
@@ -568,37 +632,39 @@ function CtaSection({ onGetStarted }: { onGetStarted: () => void }) {
 /* ── Footer ──────────────────────────────────────────────── */
 function Footer() {
   return (
-    <footer style={{
-      padding: '28px 60px', borderTop: '1px solid var(--line)',
-      display: 'flex', alignItems: 'center', gap: 20,
-      background: 'var(--bg-sunk)',
-    }}>
-      <span style={{ fontFamily: 'var(--font-display)', fontSize: 18, letterSpacing: '-0.02em', color: 'var(--ink-soft)' }}>
-        slow<em style={{ color: 'var(--accent)' }}>desk</em>
-      </span>
-      <span style={{ fontSize: 12, color: 'var(--ink-faint)' }}>A cozy place for deep work.</span>
+    <footer style={{ padding: '24px 48px', display: 'flex', alignItems: 'center', background: '#d8d0c8' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <span style={{ fontFamily: 'var(--font-display)', fontSize: 16, letterSpacing: '-0.02em', color: 'var(--ink)' }}>
+          slow<em style={{ color: 'var(--accent)' }}>desk</em>
+        </span>
+        <span style={{ fontSize: 12, color: 'var(--ink-faint)' }}>A cozy place for deep work.</span>
+      </div>
       <div style={{ flex: 1 }} />
-      <span style={{ fontSize: 11, color: 'var(--ink-faint)', fontFamily: 'var(--font-mono)' }}>Made with ☕ and patience</span>
+      <span style={{ fontSize: 12, color: 'var(--ink-faint)' }}>Made with <span style={{ color: 'var(--accent)' }}>♥</span> and patience</span>
     </footer>
   );
 }
 
-/* ── Root landing page ───────────────────────────────────── */
+/* ── Root ────────────────────────────────────────────────── */
 export default function LandingPage() {
   const [showAuth, setShowAuth] = useState(false);
 
-  const openAuth = () => setShowAuth(true);
+  const openAuth = (_tab: 'login' | 'signup' = 'signup') => {
+    setShowAuth(true);
+  };
 
   return (
-    <div style={{ overflowX: 'hidden', background: 'var(--bg)', color: 'var(--ink)', fontFamily: 'var(--font-sans)' }}>
-      <Navbar onSignIn={openAuth} />
-      <HeroSection onGetStarted={openAuth} />
-      <FeatureStrip />
-      <FeaturesSection />
-      <HowItWorks />
-      <AboutSection />
+    <div style={{ overflowX: 'hidden', background: 'var(--bg)', color: 'var(--ink)' }}>
+      <style>{LANDING_CSS}</style>
+
+      <Nav onSignIn={openAuth} />
+
+      <Hero onCta={openAuth} />
+
+      <Features />
+      <About />
       <Testimonials />
-      <CtaSection onGetStarted={openAuth} />
+      <CtaSection onCta={openAuth} />
       <Footer />
 
       {showAuth && <AuthScreen onClose={() => setShowAuth(false)} />}

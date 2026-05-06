@@ -39,6 +39,10 @@ yarn-error.log*
 # user database (never commit — contains password hashes)
 .users.json
 
+# generated dev artifacts
+email-preview.html
+scripts/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 import * as db from '@/lib/supabase/db';
 import Topbar from '@/components/Topbar';
 import Icon from '@/components/Icon';
-import { useApp } from '@/lib/store';
+
 
 const ACCENT_PALETTE = ['#c1623f', '#7a9e7e', '#8b5c75', '#c9943a', '#5b8fbf'];
 const EMOJI_OPTIONS  = ['✍️','🚶','📖','🌙','🎨','🏃','🧘','💧','🍎','🌿','💪','📝','🎯','🎵','🧠','🌞','😴','🚿','🍵','🏋️'];
@@ -45,8 +45,11 @@ function seedHistory(streak: number, colorIdx: number): string[] {
 
 function computeStreak(historySet: Set<string>): number {
   const today = new Date();
+  // If today isn't done yet, start counting from yesterday so the streak
+  // doesn't reset to 0 just because the user hasn't ticked today.
+  const start = historySet.has(toDateStr(today)) ? 0 : 1;
   let streak = 0;
-  for (let i = 0; ; i++) {
+  for (let i = start; ; i++) {
     const d = new Date(today);
     d.setDate(d.getDate() - i);
     if (historySet.has(toDateStr(d))) streak++;
@@ -380,7 +383,7 @@ function HabitRow({ habit, onToggleToday, onEdit }: {
 /* ── Page ────────────────────────────────────────────────── */
 export default function HabitsPage() {
   const supabase = createClient();
-  const { user } = useApp();
+
 
   const [userId, setUserId] = useState<string | null>(null);
   const [habits, setHabits] = useState<HabitData[]>([]);

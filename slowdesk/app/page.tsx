@@ -467,9 +467,8 @@ function ThisMonth() {
   const monthKey     = `${year}-${String(month + 1).padStart(2, '0')}`;
 
   // Read habit history from Supabase
-  const [dayCounts,    setDayCounts]    = useState<Record<string, number>>({});
-  const [totalHabits,  setTotalHabits]  = useState(0);
-  const [monthEntries, setMonthEntries] = useState(0);
+  const [dayCounts,   setDayCounts]   = useState<Record<string, number>>({});
+  const [totalHabits, setTotalHabits] = useState(0);
 
   useEffect(() => {
     const supabase = createClient();
@@ -481,17 +480,14 @@ function ThisMonth() {
         const habits = await db.getHabits(user.id);
         setTotalHabits(habits.length);
         const counts: Record<string, number> = {};
-        let total = 0;
         habits.forEach(h => {
           (h.history ?? []).forEach((date: string) => {
             if (date.startsWith(monthKey)) {
               counts[date] = (counts[date] ?? 0) + 1;
-              total++;
             }
           });
         });
         setDayCounts(counts);
-        setMonthEntries(total);
       } catch (err) {
         console.error('Failed to load habits:', err);
       }
@@ -541,9 +537,9 @@ function ThisMonth() {
 
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 12 }}>
         <span style={{ fontSize: 20, fontWeight: 700, color: 'var(--ink)' }}>
-          {monthEntries}
+          {dayCounts[`${monthKey}-${String(todayDate).padStart(2, '0')}`] ?? 0}
           <span style={{ fontSize: 13, fontWeight: 400, color: 'var(--ink-soft)', marginLeft: 6 }}>
-            habit{monthEntries !== 1 ? 's' : ''} logged
+            of {totalHabits} done today
           </span>
         </span>
       </div>
@@ -664,7 +660,7 @@ export default function DashboardPage() {
   const supabase = createClient();
   const [authUser, setAuthUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const { tasks, setTasks, toggleTask, projects } = useApp();
+  const { tasks, setTasks, toggleTask, projects, dashVariant } = useApp();
 
   // All hooks must be at the top before any conditional returns
   const [showAddModal, setShowAddModal] = useState(false);
@@ -781,7 +777,7 @@ export default function DashboardPage() {
         <GreetingCard tasks={tasks} />
 
         {/* main 2-col grid */}
-        <div className="dashboard-grid">
+        <div className="dashboard-grid" data-variant={dashVariant}>
 
           {/* ── LEFT col ── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
