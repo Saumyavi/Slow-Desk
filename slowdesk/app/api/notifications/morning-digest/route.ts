@@ -105,6 +105,15 @@ export async function GET(request: Request) {
       }
     }
 
+    // Also fire the weekly retrospective on Sunday at 18:00 UTC
+    const now = new Date();
+    if (now.getUTCDay() === 0 && now.getUTCHours() === 18) {
+      const baseUrl = new URL(request.url).origin;
+      await fetch(`${baseUrl}/api/retrospective`, {
+        headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` },
+      }).catch(e => console.error('Retrospective trigger failed:', e));
+    }
+
     return NextResponse.json({ success: true, sent: results.filter(r => r.status === 'ok').length, results });
   } catch (error) {
     console.error('Morning digest cron error:', error);
