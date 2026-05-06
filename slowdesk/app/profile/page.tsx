@@ -569,43 +569,11 @@ export default function ProfilePage() {
 
           <Divider />
 
-          {/* Time + timezone */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 16, marginBottom: 20 }}>
-            <FieldRow label="Send at">
-              <input
-                type="time"
-                value={notifTime}
-                onChange={e => setNotifTime(e.target.value)}
-                style={{
-                  width: '100%', padding: '9px 12px', borderRadius: 8,
-                  border: '1px solid var(--line)', background: 'var(--bg)',
-                  fontSize: 14, color: 'var(--ink)', outline: 'none',
-                  fontFamily: 'var(--font-sans)', boxSizing: 'border-box',
-                  transition: 'border-color 0.15s',
-                }}
-                onFocus={e => (e.target.style.borderColor = 'var(--accent)')}
-                onBlur={e => (e.target.style.borderColor = 'var(--line)')}
-              />
-            </FieldRow>
-            <FieldRow label="Timezone">
-              <select
-                value={notifTimezone}
-                onChange={e => setNotifTimezone(e.target.value)}
-                style={{
-                  width: '100%', padding: '9px 12px', borderRadius: 8,
-                  border: '1px solid var(--line)', background: 'var(--bg)',
-                  fontSize: 14, color: 'var(--ink)', outline: 'none',
-                  fontFamily: 'var(--font-sans)', boxSizing: 'border-box',
-                  transition: 'border-color 0.15s', cursor: 'pointer',
-                }}
-                onFocus={e => (e.target.style.borderColor = 'var(--accent)')}
-                onBlur={e => (e.target.style.borderColor = 'var(--line)')}
-              >
-                {TIMEZONES.map(tz => (
-                  <option key={tz} value={tz}>{tz}</option>
-                ))}
-              </select>
-            </FieldRow>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: 'var(--bg-sunk)', borderRadius: 8, marginBottom: 20 }}>
+            <span style={{ fontSize: 15 }}>☕</span>
+            <span style={{ fontSize: 13, color: 'var(--ink-faint)', fontFamily: 'var(--font-sans)' }}>
+              Delivered every morning at <strong style={{ color: 'var(--ink-soft)' }}>9:30 AM IST</strong> · custom timing coming soon
+            </span>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>

@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
-
-export const runtime = 'nodejs';
 import { Resend } from 'resend';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { sendWhatsApp } from '@/lib/twilio';
 import { getMorningDigestEmail, getMorningDigestWhatsApp, getMorningDigestTemplateVars } from '@/lib/emails/morning-digest';
+
+export const runtime = 'nodejs';
 
 export async function GET(request: Request) {
   const resend = new Resend(process.env.RESEND_API_KEY);
@@ -21,40 +21,21 @@ export async function GET(request: Request) {
       { auth: { autoRefreshToken: false, persistSession: false } },
     );
 
-    // Current UTC hour, e.g. "08"
-    const nowUtcHour = new Date().getUTCHours().toString().padStart(2, '0');
-
-    // Fetch all users who have any notification enabled
+    // Fetch all users who have any notification enabled — send to all of them daily
     const { data: profiles, error: profilesError } = await supabaseAdmin
       .from('user_profiles')
-      .select('id, notification_email_enabled, notification_whatsapp_enabled, notification_phone, notification_time, notification_timezone')
-      .or('notification_email_enabled.eq.true,notification_whatsapp_enabled.eq.true');
+      .select('id, notification_email_enabled, notification_whatsapp_enabled, notification_phone');
 
     if (profilesError) {
       return NextResponse.json({ error: 'Failed to fetch profiles' }, { status: 500 });
     }
 
-    // Filter to users whose local notification time matches current UTC hour
-    const targets = (profiles || []).filter((p: any) => {
-      const [hh] = (p.notification_time ?? '08:00').split(':');
-      // Convert user's local time to UTC using their timezone offset
-      try {
-        const tz = p.notification_timezone || 'UTC';
-        // Get what the current UTC hour looks like in the user's timezone
-        const userLocalHour = new Date().toLocaleString('en-US', {
-          timeZone: tz,
-          hour: 'numeric',
-          hour12: false,
-        }).padStart(2, '0');
-        return userLocalHour === hh;
-      } catch {
-        // Fallback: compare directly against UTC hour
-        return hh === nowUtcHour;
-      }
-    });
+    const targets = (profiles || []).filter(
+      (p: any) => p.notification_email_enabled || p.notification_whatsapp_enabled,
+    );
 
     if (targets.length === 0) {
-      return NextResponse.json({ success: true, sent: 0, message: 'No users to notify at this hour' });
+      return NextResponse.json({ success: true, sent: 0, message: 'No users opted in' });
     }
 
     // Fetch auth users to get emails
@@ -107,9 +88,8 @@ export async function GET(request: Request) {
       }
     }
 
-    // Also fire the weekly retrospective on Sunday at 18:00 UTC
-    const now = new Date();
-    if (now.getUTCDay() === 0 && now.getUTCHours() === 18) {
+    // Also fire weekly retrospective on Sunday at 04:00 UTC (same daily run)
+    if (today.getUTCDay() === 0) {
       const baseUrl = new URL(request.url).origin;
       await fetch(`${baseUrl}/api/retrospective`, {
         headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` },
@@ -129,7 +109,7 @@ async function getTodayTasks(
   userId: string,
   today: Date,
 ) {
-  const todayStr = today.toISOString().slice(0, 10); // YYYY-MM-DD
+  const todayStr = today.toISOString().slice(0, 10);
 
   const { data } = await supabaseAdmin
     .from('tasks')
