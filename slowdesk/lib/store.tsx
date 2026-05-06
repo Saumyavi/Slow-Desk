@@ -218,7 +218,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (userId) db.updateUserPreferences(userId, { mood: m });
   }, [userId]);
 
-  const setDashVariant = (v: DashVariant) => setDashVariantState(v);
+  const setDashVariant = useCallback((v: DashVariant) => {
+    setDashVariantState(v);
+    if (userId) db.updateUserPreferences(userId, { dash_variant: v });
+  }, [userId]);
 
   const fireConfetti = (x = window.innerWidth / 2, y = window.innerHeight / 3) =>
     setConfettiTrigger({ x, y, t: Date.now() });
