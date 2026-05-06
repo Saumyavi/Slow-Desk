@@ -41,7 +41,7 @@ export async function sendWhatsApp(payload: WhatsAppPayload): Promise<void> {
   const res = await fetch(`${TWILIO_API}/${accountSid}/Messages.json`, {
     method: 'POST',
     headers: {
-      'Authorization': `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString('base64')}`,
+      'Authorization': `Basic ${btoa(`${accountSid}:${authToken}`)}`,
       'Content-Type': 'application/x-www-form-urlencoded',
     },
     body: params.toString(),
