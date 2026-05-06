@@ -1,10 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import {
-  getGoogleCalendarStatus,
-  saveGoogleCalendarTokens,
-  upsertGoogleCalendarEvent,
-} from '@/lib/supabase/db';
+import { upsertGoogleCalendarEvent } from '@/lib/supabase/db';
 
 async function refreshAccessToken(refreshToken: string): Promise<{ access_token: string; expires_in: number } | null> {
   const res = await fetch('https://oauth2.googleapis.com/token', {
@@ -56,26 +52,31 @@ export async function POST(request: Request) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const status = await getGoogleCalendarStatus(user.id);
-  if (!status?.google_calendar_connected || !status.google_calendar_access_token) {
+  // Read tokens directly with server client
+  const { data: profile } = await supabase
+    .from('user_profiles')
+    .select('google_calendar_connected, google_calendar_access_token, google_calendar_refresh_token, google_calendar_token_expiry')
+    .eq('id', user.id)
+    .single();
+
+  if (!profile?.google_calendar_connected || !profile.google_calendar_access_token) {
     return NextResponse.json({ error: 'Google Calendar not connected' }, { status: 400 });
   }
 
-  let accessToken = status.google_calendar_access_token;
+  let accessToken = profile.google_calendar_access_token;
 
   // Refresh token if expired or about to expire (within 5 minutes)
-  const expiry = status.google_calendar_token_expiry
-    ? new Date(status.google_calendar_token_expiry).getTime()
+  const expiry = profile.google_calendar_token_expiry
+    ? new Date(profile.google_calendar_token_expiry).getTime()
     : 0;
-  if (Date.now() > expiry - 5 * 60 * 1000 && status.google_calendar_refresh_token) {
-    const refreshed = await refreshAccessToken(status.google_calendar_refresh_token);
+  if (Date.now() > expiry - 5 * 60 * 1000 && profile.google_calendar_refresh_token) {
+    const refreshed = await refreshAccessToken(profile.google_calendar_refresh_token);
     if (!refreshed) return NextResponse.json({ error: 'Token refresh failed' }, { status: 401 });
     accessToken = refreshed.access_token;
-    await saveGoogleCalendarTokens(user.id, {
-      accessToken,
-      refreshToken: status.google_calendar_refresh_token,
-      expiryMs: Date.now() + refreshed.expires_in * 1000,
-    });
+    await supabase.from('user_profiles').update({
+      google_calendar_access_token: accessToken,
+      google_calendar_token_expiry: new Date(Date.now() + refreshed.expires_in * 1000).toISOString(),
+    }).eq('id', user.id);
   }
 
   // Fetch events from Google: next 90 days + past 30 days

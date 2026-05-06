@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { saveGoogleCalendarTokens } from '@/lib/supabase/db';
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
@@ -30,7 +29,7 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${origin}/calendar?gcal_error=token_exchange_failed`);
   }
 
-  // Get current user from Supabase session
+  // Use server client — has the session cookie from the browser
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -38,11 +37,20 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${origin}/calendar?gcal_error=not_authenticated`);
   }
 
-  await saveGoogleCalendarTokens(user.id, {
-    accessToken:  tokens.access_token,
-    refreshToken: tokens.refresh_token ?? null,
-    expiryMs:     Date.now() + (tokens.expires_in ?? 3600) * 1000,
-  });
+  // Update directly with server client so RLS auth is correct
+  const { error: dbError } = await supabase
+    .from('user_profiles')
+    .update({
+      google_calendar_connected:     true,
+      google_calendar_access_token:  tokens.access_token,
+      google_calendar_refresh_token: tokens.refresh_token ?? null,
+      google_calendar_token_expiry:  new Date(Date.now() + (tokens.expires_in ?? 3600) * 1000).toISOString(),
+    })
+    .eq('id', user.id);
+
+  if (dbError) {
+    return NextResponse.redirect(`${origin}/calendar?gcal_error=db_save_failed`);
+  }
 
   return NextResponse.redirect(`${origin}/calendar?gcal_connected=1`);
 }
