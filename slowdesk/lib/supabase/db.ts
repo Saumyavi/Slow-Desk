@@ -327,6 +327,8 @@ export async function getCalendarEvents(userId: string) {
     endTime: e.end_time,
     color: e.color,
     note: e.note || '',
+    source: (e.source ?? 'local') as 'local' | 'google',
+    googleEventId: e.google_event_id ?? undefined,
   }));
 }
 
@@ -385,6 +387,82 @@ export async function deleteCalendarEvent(userId: string, eventId: string) {
 
   if (error) throw error;
   return true;
+}
+
+// ========== GOOGLE CALENDAR ==========
+
+export async function getGoogleCalendarStatus(userId: string) {
+  const supabase = getClient();
+  const { data } = await supabase
+    .from('user_profiles')
+    .select('google_calendar_connected, google_calendar_access_token, google_calendar_refresh_token, google_calendar_token_expiry')
+    .eq('id', userId)
+    .single();
+  return data ?? null;
+}
+
+export async function saveGoogleCalendarTokens(userId: string, tokens: {
+  accessToken: string;
+  refreshToken: string | null;
+  expiryMs: number;
+}) {
+  const supabase = getClient();
+  const { error } = await supabase
+    .from('user_profiles')
+    .update({
+      google_calendar_connected: true,
+      google_calendar_access_token: tokens.accessToken,
+      google_calendar_refresh_token: tokens.refreshToken,
+      google_calendar_token_expiry: new Date(tokens.expiryMs).toISOString(),
+    })
+    .eq('id', userId);
+  if (error) throw error;
+}
+
+export async function clearGoogleCalendarTokens(userId: string) {
+  const supabase = getClient();
+  await supabase
+    .from('user_profiles')
+    .update({
+      google_calendar_connected: false,
+      google_calendar_access_token: null,
+      google_calendar_refresh_token: null,
+      google_calendar_token_expiry: null,
+    })
+    .eq('id', userId);
+  // Remove synced Google events
+  await supabase
+    .from('calendar_events')
+    .delete()
+    .eq('user_id', userId)
+    .eq('source', 'google');
+}
+
+export async function upsertGoogleCalendarEvent(userId: string, event: {
+  googleEventId: string;
+  title: string;
+  day: number; month: number; year: number;
+  time: string; endTime: string;
+  note: string;
+}) {
+  const supabase = getClient();
+  const { error } = await supabase
+    .from('calendar_events')
+    .upsert({
+      user_id: userId,
+      google_event_id: event.googleEventId,
+      title: event.title,
+      day: event.day,
+      month: event.month,
+      year: event.year,
+      time: event.time,
+      end_time: event.endTime,
+      color: '#5b8fbf',
+      note: event.note,
+      source: 'google',
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'user_id,google_event_id', ignoreDuplicates: false });
+  if (error) throw error;
 }
 
 // ========== NOTES ==========

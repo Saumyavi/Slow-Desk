@@ -11,7 +11,7 @@ A cozy, personal productivity workspace. Track tasks, projects, habits, notes, a
 | **Dashboard** | Greeting card with mood tracker, today's task queue (drag to reorder), week Gantt timeline, task donut chart, habit heatmap, active project cards |
 | **Tasks** | Full task list with All / Today / Upcoming / Completed tabs, priority & project filters, inline edit/delete, **photo-to-task OCR** (point camera at a handwritten list) |
 | **Projects** | Tone-colored project cards with per-project task progress bars and due dates |
-| **Calendar** | Month view with color-coded events by category |
+| **Calendar** | Month view with color-coded events; **Google Calendar sync** — connect once, pull all events automatically with a `G` badge on imported events |
 | **Habits** | Daily habit tracking with per-habit streak counter and 30-day history heatmap |
 | **Notes** | Freeform notes with color tones and an integrated daily gratitude journal |
 | **Profile** | Editorial profile editor — name, role, bio, location, status emoji, avatar; appearance settings; dashboard layout picker; morning ritual setup |
@@ -37,7 +37,7 @@ A cozy, personal productivity workspace. Track tasks, projects, habits, notes, a
 | UI | React 19 |
 | Styling | Tailwind CSS v4 + custom CSS design system (`globals.css`) |
 | Animations | GSAP 3 |
-| Auth | Supabase Auth — Google OAuth + email/password |
+| Auth | Supabase Auth — Google OAuth + email/password; Google Calendar OAuth 2.0 (separate scope) |
 | Database | Supabase (PostgreSQL) |
 | Email | Resend |
 | WhatsApp | Twilio Business API |
@@ -60,8 +60,14 @@ slowdesk/
 │   ├── habits/page.tsx
 │   ├── notes/page.tsx
 │   ├── profile/page.tsx                            # Profile + morning ritual settings
-│   ├── auth/callback/route.ts                      # Supabase OAuth callback
+│   ├── auth/
+│   │   ├── callback/route.ts                       # Supabase OAuth callback
+│   │   └── google-calendar/callback/route.ts       # Google Calendar OAuth callback
 │   ├── api/
+│   │   ├── google-calendar/
+│   │   │   ├── connect/route.ts                    # Initiate Google Calendar OAuth
+│   │   │   ├── sync/route.ts                       # Fetch & upsert events from Google
+│   │   │   └── disconnect/route.ts                 # Revoke connection + delete synced events
 │   │   ├── notifications/morning-digest/route.ts   # Daily cron (4am UTC)
 │   │   └── retrospective/route.ts                  # Weekly retrospective (triggered Sundays)
 │   ├── layout.tsx
@@ -100,7 +106,7 @@ slowdesk/
 ├── public/
 │   ├── robots.txt
 │   └── sitemap.xml
-├── middleware.ts             # Supabase session refresh on every request
+├── proxy.ts                  # Supabase session refresh on every request (Next.js 16 convention)
 ├── next.config.ts            # Security headers + Next.js config
 ├── vercel.json               # Cron job schedule
 └── .env.example              # Required environment variables (template)
@@ -129,6 +135,9 @@ npm install
 
 ### 3. Set up Google OAuth
 
+Two separate OAuth configurations are needed: one for Supabase login, one for Google Calendar sync.
+
+**Supabase login (Google sign-in):**
 1. Go to [Google Cloud Console](https://console.cloud.google.com) → APIs & Services → Credentials
 2. Create an OAuth 2.0 Client ID (Web application)
 3. Under **Authorized redirect URIs**, add:
@@ -136,6 +145,15 @@ npm install
    https://<your-supabase-project>.supabase.co/auth/v1/callback
    ```
 4. Copy the Client ID and Secret into Supabase → Authentication → Providers → Google
+
+**Google Calendar sync:**
+1. In the same Google Cloud project, enable the **Google Calendar API** (APIs & Services → Library)
+2. Create a second OAuth 2.0 Client ID (or reuse the same one) and add these redirect URIs:
+   ```
+   http://localhost:3000/auth/google-calendar/callback
+   https://your-domain.vercel.app/auth/google-calendar/callback
+   ```
+3. Copy the Client ID and Secret into `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` env vars
 
 ### 4. Configure environment variables
 
@@ -156,6 +174,10 @@ RESEND_API_KEY=<from resend.com>
 
 # Cron authentication
 CRON_SECRET=<run: openssl rand -hex 32>
+
+# Google Calendar sync (optional — only needed for Calendar tab sync)
+GOOGLE_CLIENT_ID=<from Google Cloud Console>
+GOOGLE_CLIENT_SECRET=<from Google Cloud Console>
 
 # Twilio WhatsApp (optional — only needed if WhatsApp digest is used)
 TWILIO_ACCOUNT_SID=
