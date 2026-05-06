@@ -470,7 +470,7 @@ export default function CalendarPage() {
                     className="btn btn-primary"
                     style={{ flex: 1, fontSize: 12, padding: '7px 12px', opacity: gcalSyncing ? 0.7 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
                   >
-                    <Icon name="refresh" size={12} />
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
                     {gcalSyncing ? 'Syncing…' : 'Sync now'}
                   </button>
                   <button
