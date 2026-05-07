@@ -230,6 +230,62 @@ export async function deleteTask(userId: string, taskId: string) {
   return true;
 }
 
+// ========== SUBTASKS ==========
+
+export async function getSubtasksByUser(userId: string) {
+  const supabase = getClient();
+  const { data, error } = await supabase
+    .from('subtasks')
+    .select('*')
+    .eq('user_id', userId)
+    .order('position', { ascending: true });
+
+  if (error || !data) return [];
+
+  return data.map((s: any) => ({
+    id: s.id,
+    task_id: s.task_id,
+    title: s.title,
+    done: s.done,
+    position: s.position,
+  }));
+}
+
+export async function createSubtask(userId: string, taskId: string, title: string, position: number) {
+  const supabase = getClient();
+  const id = `st${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  const { data, error } = await supabase
+    .from('subtasks')
+    .insert({ id, user_id: userId, task_id: taskId, title, done: false, position })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return { id: data.id, task_id: data.task_id, title: data.title, done: data.done, position: data.position };
+}
+
+export async function toggleSubtask(userId: string, subtaskId: string, done: boolean) {
+  const supabase = getClient();
+  const { error } = await supabase
+    .from('subtasks')
+    .update({ done })
+    .eq('id', subtaskId)
+    .eq('user_id', userId);
+
+  if (error) throw error;
+}
+
+export async function deleteSubtask(userId: string, subtaskId: string) {
+  const supabase = getClient();
+  const { error } = await supabase
+    .from('subtasks')
+    .delete()
+    .eq('id', subtaskId)
+    .eq('user_id', userId);
+
+  if (error) throw error;
+}
+
 // ========== PROJECTS ==========
 
 export async function getProjects(userId: string) {

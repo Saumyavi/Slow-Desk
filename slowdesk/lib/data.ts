@@ -13,6 +13,14 @@ export interface Task {
   priority: Priority;
 }
 
+export interface SubTask {
+  id: string;
+  task_id: string;
+  title: string;
+  done: boolean;
+  position: number;
+}
+
 export interface Project {
   id: string;
   name: string;
