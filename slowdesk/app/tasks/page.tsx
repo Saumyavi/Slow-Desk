@@ -2,7 +2,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { gsap } from 'gsap';
 import { useApp } from '@/lib/store';
-import { TONE_COLORS, Task, SubTask } from '@/lib/data';
+import { TONE_COLORS, Task, SubTask, recurrenceLabel, nextOccurrenceDate, dateToDueBucket } from '@/lib/data';
 import { createClient } from '@/lib/supabase/client';
 import * as db from '@/lib/supabase/db';
 import { ExtractedTask } from '@/lib/task-parser';
@@ -14,15 +14,17 @@ import CameraCapture from '@/components/CameraCapture';
 import TaskReview from '@/components/TaskReview';
 import VoiceCapture from '@/components/VoiceCapture';
 
-type Filter = 'all' | 'today' | 'upcoming' | 'completed';
+type Filter = 'all' | 'today' | 'upcoming' | 'completed' | 'recurring';
 
 /* ── Task row ──────────────────────────────────────────── */
-function TaskItem({ task, projectColor, onToggle, onEdit, onDelete, onFocus, subtasks, onAddSubtask, onToggleSubtask, onDeleteSubtask, isNew, onDismissNew }: {
+function TaskItem({ task, projectColor, onToggle, onEdit, onDelete, onSkip, onHistory, onFocus, subtasks, onAddSubtask, onToggleSubtask, onDeleteSubtask, isNew, onDismissNew }: {
   task: Task;
   projectColor: string;
   onToggle: (id: string) => void;
   onEdit: (task: Task) => void;
   onDelete: (id: string) => void;
+  onSkip?: (task: Task) => void;
+  onHistory?: (task: Task) => void;
   onFocus: (task: Task) => void;
   subtasks: SubTask[];
   onAddSubtask: (taskId: string, title: string) => void;
@@ -36,6 +38,7 @@ function TaskItem({ task, projectColor, onToggle, onEdit, onDelete, onFocus, sub
   const menuRef  = useRef<HTMLDivElement>(null);
   const inputRef    = useRef<HTMLInputElement>(null);
   const [menuOpen,        setMenuOpen]        = useState(false);
+  const [deleteMode,      setDeleteMode]      = useState<'idle' | 'confirm'>('idle');
   const [showFocusBtn,    setShowFocusBtn]    = useState(false);
   const [showPanel,       setShowPanel]       = useState(false);
   const [breaking,        setBreaking]        = useState(false);
@@ -218,6 +221,18 @@ function TaskItem({ task, projectColor, onToggle, onEdit, onDelete, onFocus, sub
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.project}</span>
           </div>
 
+          {/* Recurring badge */}
+          {task.recurrenceRule && (
+            <span title={recurrenceLabel(task.recurrenceRule)} style={{
+              display: 'flex', alignItems: 'center', gap: 3,
+              fontSize: 10, color: 'var(--accent)', fontFamily: 'var(--font-mono)',
+              border: '1px solid var(--accent)', borderRadius: 4,
+              padding: '1px 5px', opacity: 0.75, flexShrink: 0,
+            }}>
+              <Icon name="repeat" size={9} /> {recurrenceLabel(task.recurrenceRule)}
+            </span>
+          )}
+
           {/* Focus button — visible on hover */}
           {showFocusBtn && !task.done && (
             <button
@@ -286,16 +301,61 @@ function TaskItem({ task, projectColor, onToggle, onEdit, onDelete, onFocus, sub
                 >
                   <Icon name="edit" size={12} /> Edit
                 </button>
-                <button onClick={() => { handleDelete(); setMenuOpen(false); }} style={{
-                  display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-                  padding: '7px 10px', borderRadius: 6, border: 'none', background: 'transparent',
-                  cursor: 'pointer', fontSize: 12, color: '#e05c3c', fontFamily: 'var(--font-sans)', textAlign: 'left',
-                }}
-                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(224,92,60,0.08)')}
-                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                >
-                  <Icon name="trash" size={12} /> Delete
-                </button>
+
+                {task.recurrenceRule && onHistory && (
+                  <button onClick={() => { onHistory(task); setMenuOpen(false); }} style={{
+                    display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                    padding: '7px 10px', borderRadius: 6, border: 'none', background: 'transparent',
+                    cursor: 'pointer', fontSize: 12, color: 'var(--ink)', fontFamily: 'var(--font-sans)', textAlign: 'left',
+                  }}
+                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-sunk)')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                  >
+                    <Icon name="clock" size={12} /> History
+                  </button>
+                )}
+
+                {task.recurrenceRule && deleteMode === 'idle' ? (
+                  <button onClick={() => setDeleteMode('confirm')} style={{
+                    display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                    padding: '7px 10px', borderRadius: 6, border: 'none', background: 'transparent',
+                    cursor: 'pointer', fontSize: 12, color: '#e05c3c', fontFamily: 'var(--font-sans)', textAlign: 'left',
+                  }}
+                    onMouseEnter={e => (e.currentTarget.style.background = 'rgba(224,92,60,0.08)')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                  >
+                    <Icon name="trash" size={12} /> Delete…
+                  </button>
+                ) : task.recurrenceRule && deleteMode === 'confirm' ? (
+                  <div style={{ padding: '6px 10px', borderTop: '1px solid var(--line)' }}>
+                    <div style={{ fontSize: 11, color: 'var(--ink-faint)', marginBottom: 6, fontFamily: 'var(--font-mono)' }}>Remove this task?</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      {onSkip && (
+                        <button onClick={() => { onSkip(task); setMenuOpen(false); setDeleteMode('idle'); }} style={{
+                          padding: '5px 8px', borderRadius: 5, border: '1px solid var(--line)',
+                          background: 'transparent', cursor: 'pointer', fontSize: 11,
+                          color: 'var(--ink)', fontFamily: 'var(--font-sans)', textAlign: 'left',
+                        }}>↩ Skip this, keep series</button>
+                      )}
+                      <button onClick={() => { handleDelete(); setMenuOpen(false); setDeleteMode('idle'); }} style={{
+                        padding: '5px 8px', borderRadius: 5, border: '1px solid rgba(224,92,60,0.3)',
+                        background: 'rgba(224,92,60,0.06)', cursor: 'pointer', fontSize: 11,
+                        color: '#e05c3c', fontFamily: 'var(--font-sans)', textAlign: 'left',
+                      }}>✕ Stop series</button>
+                    </div>
+                  </div>
+                ) : (
+                  <button onClick={() => { handleDelete(); setMenuOpen(false); }} style={{
+                    display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                    padding: '7px 10px', borderRadius: 6, border: 'none', background: 'transparent',
+                    cursor: 'pointer', fontSize: 12, color: '#e05c3c', fontFamily: 'var(--font-sans)', textAlign: 'left',
+                  }}
+                    onMouseEnter={e => (e.currentTarget.style.background = 'rgba(224,92,60,0.08)')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                  >
+                    <Icon name="trash" size={12} /> Delete
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -496,9 +556,12 @@ export default function TasksPage() {
   const [showVoice,  setShowVoice]  = useState(false);
   const [extractedTasks, setExtractedTasks] = useState<ExtractedTask[]>([]);
   const [showReview, setShowReview] = useState(false);
-  const [userId,       setUserId]       = useState<string | null>(null);
-  const [subtasksMap,  setSubtasksMap]  = useState<Record<string, SubTask[]>>({});
-  const [newTaskId,    setNewTaskId]    = useState<string | null>(null);
+  const [userId,         setUserId]         = useState<string | null>(null);
+  const [historyTask,    setHistoryTask]    = useState<Task | null>(null);
+  const [historyEntries, setHistoryEntries] = useState<{ title: string; completedAt: string }[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [subtasksMap,    setSubtasksMap]    = useState<Record<string, SubTask[]>>({});
+  const [newTaskId,      setNewTaskId]      = useState<string | null>(null);
   const listRef      = useRef<HTMLDivElement>(null);
   const filterBtnRef = useRef<HTMLDivElement>(null);
 
@@ -537,6 +600,41 @@ export default function TasksPage() {
   const onToggle = useCallback((id: string) => {
     toggleTask(id);
   }, [toggleTask]);
+
+  const onSkip = useCallback(async (task: Task) => {
+    if (!userId) return;
+    try {
+      const next = await db.skipRecurrence(userId, task);
+      setTasks(prev => {
+        const without = prev.filter(t => t.id !== task.id);
+        if (!next) return without;
+        return [{
+          id: next.id, title: next.title, done: false,
+          project: next.project || '', tone: next.tone ?? 'terra',
+          attach: 0, due: next.due, time: next.time ?? '—',
+          priority: next.priority ?? 'medium',
+          recurrenceRule: task.recurrenceRule,
+          recurrenceTemplateId: task.recurrenceTemplateId ?? task.id,
+        }, ...without];
+      });
+    } catch (err) {
+      console.error('Failed to skip recurrence:', err);
+    }
+  }, [userId, setTasks]);
+
+  const onHistory = useCallback(async (task: Task) => {
+    setHistoryTask(task);
+    setHistoryLoading(true);
+    setHistoryEntries([]);
+    try {
+      const entries = await db.getRecurringHistory(userId!, task);
+      setHistoryEntries(entries);
+    } catch (err) {
+      console.error('Failed to load history:', err);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, [userId]);
 
   const onDelete = useCallback(async (id: string) => {
     if (!userId) return;
@@ -652,6 +750,7 @@ export default function TasksPage() {
       case 'today':     return tasks.filter(t => t.due === 'today'    && !t.done);
       case 'upcoming':  return tasks.filter(t => t.due === 'tomorrow' && !t.done);
       case 'completed': return tasks.filter(t => t.done);
+      case 'recurring': return tasks.filter(t => !!t.recurrenceRule   && !t.done);
       default:          return tasks;
     }
   })();
@@ -667,11 +766,13 @@ export default function TasksPage() {
     tasks: filtered.filter(t => t.project === name),
   }));
 
+  const recurringCount = tasks.filter(t => !!t.recurrenceRule && !t.done).length;
   const FILTERS = [
     { key: 'all'       as Filter, label: 'All',       count: tasks.length },
     { key: 'today'     as Filter, label: 'Today',     count: tasks.filter(t => t.due === 'today'    && !t.done).length },
     { key: 'upcoming'  as Filter, label: 'Upcoming',  count: tasks.filter(t => t.due === 'tomorrow' && !t.done).length },
     { key: 'completed' as Filter, label: 'Completed', count: completedCount },
+    { key: 'recurring' as Filter, label: '↻ Recurring', count: recurringCount },
   ];
 
   return (
@@ -895,6 +996,8 @@ export default function TasksPage() {
                     onToggle={onToggle}
                     onEdit={setEditingTask}
                     onDelete={onDelete}
+                    onSkip={onSkip}
+                    onHistory={onHistory}
                     onFocus={setFocusTask}
                     subtasks={subtasksMap[t.id] ?? []}
                     onAddSubtask={onAddSubtask}
@@ -919,6 +1022,101 @@ export default function TasksPage() {
           )}
         </div>
       </div>
+
+      {/* Recurring history sidebar */}
+      {historyTask && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 1800,
+          display: 'flex', justifyContent: 'flex-end',
+        }} onClick={() => setHistoryTask(null)}>
+          <div onClick={e => e.stopPropagation()} style={{
+            width: 320, height: '100%', background: 'var(--bg-elev)',
+            borderLeft: '1px solid var(--line)', boxShadow: '-12px 0 40px rgba(0,0,0,0.12)',
+            display: 'flex', flexDirection: 'column', overflow: 'hidden',
+          }}>
+            {/* Header */}
+            <div style={{ padding: '20px 20px 16px', borderBottom: '1px solid var(--line)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                <Icon name="repeat" size={14} style={{ color: 'var(--accent)' }} />
+                <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--accent)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                  {recurrenceLabel(historyTask.recurrenceRule!)}
+                </span>
+                <div style={{ flex: 1 }} />
+                <button onClick={() => setHistoryTask(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink-faint)', padding: 4 }}>
+                  <Icon name="x" size={15} />
+                </button>
+              </div>
+              <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--ink)', lineHeight: 1.3 }}>{historyTask.title}</div>
+              {historyEntries.length > 0 && (
+                <div style={{ marginTop: 10, display: 'flex', gap: 16 }}>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--accent)', fontFamily: 'var(--font-display)' }}>{historyEntries.length}</div>
+                    <div style={{ fontSize: 10, color: 'var(--ink-faint)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>total</div>
+                  </div>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--accent)', fontFamily: 'var(--font-display)' }}>
+                      {(() => {
+                        const rule = historyTask.recurrenceRule ?? '';
+                        const period = rule === 'daily' ? 1 : rule.startsWith('biweekly') ? 14 : rule.startsWith('monthly') ? 31 : 7;
+                        const sorted = [...historyEntries]
+                          .map(e => new Date(e.completedAt).getTime())
+                          .sort((a, b) => b - a);
+                        let streak = 0;
+                        let cursor = Date.now();
+                        for (const ts of sorted) {
+                          const gap = (cursor - ts) / 86400000;
+                          if (gap <= period + 1) { streak++; cursor = ts; } else break;
+                        }
+                        return streak;
+                      })()}
+                    </div>
+                    <div style={{ fontSize: 10, color: 'var(--ink-faint)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>streak</div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* History list */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '12px 20px' }}>
+              {historyLoading ? (
+                <div style={{ fontSize: 12, color: 'var(--ink-faint)', fontStyle: 'italic', padding: '20px 0' }}>Loading…</div>
+              ) : historyEntries.length === 0 ? (
+                <div style={{ fontSize: 12, color: 'var(--ink-faint)', fontStyle: 'italic', padding: '20px 0' }}>No completions yet.</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                  {historyEntries.map((e, i) => {
+                    const d = new Date(e.completedAt);
+                    return (
+                      <div key={i} style={{
+                        display: 'flex', alignItems: 'center', gap: 10,
+                        padding: '9px 0', borderBottom: '1px solid var(--line)',
+                      }}>
+                        <div style={{
+                          width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
+                          background: 'var(--accent)', display: 'grid', placeItems: 'center',
+                        }}>
+                          <Icon name="check" size={12} style={{ color: '#fff' }} />
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--ink)' }}>
+                            {d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                          </div>
+                          <div style={{ fontSize: 10, color: 'var(--ink-faint)', fontFamily: 'var(--font-mono)' }}>
+                            {d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                          </div>
+                        </div>
+                        {i === 0 && (
+                          <span style={{ fontSize: 9, fontFamily: 'var(--font-mono)', background: 'var(--accent-soft)', color: 'var(--accent)', borderRadius: 4, padding: '2px 5px', fontWeight: 700 }}>LATEST</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {showAddModal && <TaskModal onAdd={onAdd} onClose={() => setShowAddModal(false)} />}
       {editingTask  && <TaskModal editTask={editingTask} onEdit={onEditSave} onClose={() => setEditingTask(null)} />}

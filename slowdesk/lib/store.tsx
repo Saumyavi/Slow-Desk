@@ -165,6 +165,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setCompletions(completionsData);
       setDataLoaded(true);
 
+      // Catch up any stale recurring tasks
+      const refreshed = await db.catchUpRecurringTasks(authUser.id);
+      if (refreshed.length > 0) setTasksState(refreshed);
+
     } catch (err) {
       console.error('Error loading user data:', err);
     }
@@ -320,6 +324,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // Update Supabase
       await db.updateTask(userId, id, { done: true });
       await db.incrementDailyCompletion(userId, today);
+
+      // Spawn next recurrence if applicable
+      if (task.recurrenceRule) {
+        try {
+          const next = await db.spawnNextRecurrence(userId, task);
+          if (next) {
+            setTasksState(prev => [{
+              id:                  next.id,
+              title:               next.title,
+              done:                false,
+              project:             next.project || '',
+              tone:                next.tone ?? 'terra',
+              attach:              0,
+              due:                 next.due,
+              time:                next.time ?? '—',
+              priority:            next.priority ?? 'medium',
+              recurrenceRule:      task.recurrenceRule,
+              recurrenceTemplateId: task.recurrenceTemplateId ?? task.id,
+            }, ...prev]);
+          }
+        } catch (err) {
+          console.error('Failed to spawn next recurrence:', err);
+        }
+      }
     } else {
       setCompletions(c => ({ ...c, [today]: Math.max(0, (c[today] ?? 0) - 1) }));
 

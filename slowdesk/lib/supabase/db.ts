@@ -1,4 +1,5 @@
 import { createClient } from './client';
+import { nextOccurrenceDate, dateToDueBucket, Task } from '@/lib/data';
 
 // Helper to get fresh supabase client
 function getClient() {
@@ -142,6 +143,8 @@ export async function getTasks(userId: string) {
     due: t.due,
     time: t.time,
     priority: t.priority,
+    recurrenceRule: t.recurrence_rule ?? undefined,
+    recurrenceTemplateId: t.recurrence_template_id ?? undefined,
   }));
 }
 
@@ -173,6 +176,8 @@ export async function createTask(userId: string, task: any) {
       due: task.due,
       time: task.time,
       priority: task.priority,
+      recurrence_rule: task.recurrenceRule ?? null,
+      recurrence_template_id: task.recurrenceTemplateId ?? null,
     })
     .select()
     .single();
@@ -193,6 +198,7 @@ export async function updateTask(userId: string, taskId: string, updates: any) {
   if (updates.due !== undefined) updateData.due = updates.due;
   if (updates.time !== undefined) updateData.time = updates.time;
   if (updates.priority !== undefined) updateData.priority = updates.priority;
+  if (updates.recurrenceRule !== undefined) updateData.recurrence_rule = updates.recurrenceRule || null;
 
   if (updates.project !== undefined) {
     if (updates.project) {
@@ -228,6 +234,73 @@ export async function deleteTask(userId: string, taskId: string) {
 
   if (error) throw error;
   return true;
+}
+
+export async function spawnNextRecurrence(userId: string, completedTask: Task): Promise<Task | null> {
+  if (!completedTask.recurrenceRule) return null;
+  const nextDate   = nextOccurrenceDate(completedTask.recurrenceRule, new Date());
+  const dueBucket  = dateToDueBucket(nextDate);
+  const templateId = completedTask.recurrenceTemplateId ?? completedTask.id;
+  const newTask    = {
+    title:               completedTask.title,
+    done:                false,
+    project:             completedTask.project,
+    tone:                completedTask.tone,
+    attach:              0,
+    due:                 dueBucket,
+    time:                completedTask.time,
+    priority:            completedTask.priority,
+    recurrenceRule:      completedTask.recurrenceRule,
+    recurrenceTemplateId: templateId,
+  };
+  return await createTask(userId, newTask);
+}
+
+export async function getRecurringHistory(userId: string, task: Task): Promise<{ title: string; completedAt: string }[]> {
+  const supabase = getClient();
+  const templateId = task.recurrenceTemplateId ?? task.id;
+  const { data } = await supabase
+    .from('tasks')
+    .select('title, updated_at')
+    .eq('user_id', userId)
+    .eq('done', true)
+    .or(`id.eq.${templateId},recurrence_template_id.eq.${templateId}`)
+    .order('updated_at', { ascending: false })
+    .limit(30);
+  return (data ?? []).map((r: any) => ({ title: r.title, completedAt: r.updated_at }));
+}
+
+export async function skipRecurrence(userId: string, task: Task): Promise<Task | null> {
+  const supabase = getClient();
+  // Delete current instance
+  await supabase.from('tasks').delete().eq('id', task.id).eq('user_id', userId);
+  // Spawn the next one
+  return await spawnNextRecurrence(userId, task);
+}
+
+export async function catchUpRecurringTasks(userId: string): Promise<Task[]> {
+  const supabase = getClient();
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  const { data } = await supabase
+    .from('tasks')
+    .select('id, recurrence_rule, updated_at')
+    .eq('user_id', userId)
+    .eq('done', false)
+    .not('recurrence_rule', 'is', null);
+
+  if (!data?.length) return [];
+
+  const stale = data.filter((t: any) => new Date(t.updated_at) < yesterday);
+  for (const t of stale) {
+    await supabase
+      .from('tasks')
+      .update({ due: 'today', updated_at: new Date().toISOString() })
+      .eq('id', t.id)
+      .eq('user_id', userId);
+  }
+  return stale.length > 0 ? await getTasks(userId) : [];
 }
 
 // ========== SUBTASKS ==========
