@@ -23,6 +23,7 @@ async function upsertEvent(supabase: SupabaseClient, userId: string, event: {
   time: string; endTime: string; note: string;
 }) {
   const { error } = await supabase.from('calendar_events').upsert({
+    id:              `g${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     user_id:         userId,
     google_event_id: event.googleEventId,
     title:           event.title,
