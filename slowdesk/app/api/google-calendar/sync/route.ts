@@ -127,11 +127,21 @@ export async function POST(request: Request) {
   const items: any[] = gcalData.items ?? [];
 
   let synced = 0;
+  let upsertError: string | null = null;
   for (const item of items) {
     const parsed = parseGoogleEvent(item);
     if (!parsed) continue;
-    await upsertEvent(supabase, user.id, parsed);
-    synced++;
+    try {
+      await upsertEvent(supabase, user.id, parsed);
+      synced++;
+    } catch (e: any) {
+      upsertError = e?.message ?? String(e);
+      break;
+    }
+  }
+
+  if (upsertError) {
+    return NextResponse.json({ error: 'Upsert failed', detail: upsertError }, { status: 500 });
   }
 
   return NextResponse.json({ synced });
