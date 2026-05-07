@@ -9,23 +9,26 @@ import { ExtractedTask } from '@/lib/task-parser';
 import Topbar from '@/components/Topbar';
 import Icon from '@/components/Icon';
 import TaskModal from '@/components/TaskModal';
+import PomodoroTimer from '@/components/PomodoroTimer';
 import CameraCapture from '@/components/CameraCapture';
 import TaskReview from '@/components/TaskReview';
 
 type Filter = 'all' | 'today' | 'upcoming' | 'completed';
 
 /* ── Task row ──────────────────────────────────────────── */
-function TaskItem({ task, projectColor, onToggle, onEdit, onDelete }: {
+function TaskItem({ task, projectColor, onToggle, onEdit, onDelete, onFocus }: {
   task: Task;
   projectColor: string;
   onToggle: (id: string) => void;
   onEdit: (task: Task) => void;
   onDelete: (id: string) => void;
+  onFocus: (task: Task) => void;
 }) {
   const rowRef   = useRef<HTMLDivElement>(null);
   const checkRef = useRef<HTMLButtonElement>(null);
   const menuRef  = useRef<HTMLDivElement>(null);
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuOpen,    setMenuOpen]    = useState(false);
+  const [showFocusBtn, setShowFocusBtn] = useState(false);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -70,10 +73,12 @@ function TaskItem({ task, projectColor, onToggle, onEdit, onDelete }: {
       onMouseEnter={e => {
         e.currentTarget.style.borderColor = 'rgba(193,98,63,0.25)';
         e.currentTarget.style.boxShadow = '0 2px 12px rgba(0,0,0,0.06)';
+        setShowFocusBtn(true);
       }}
       onMouseLeave={e => {
         e.currentTarget.style.borderColor = 'var(--line)';
         e.currentTarget.style.boxShadow = 'none';
+        setShowFocusBtn(false);
       }}
     >
       {/* Checkbox */}
@@ -129,6 +134,24 @@ function TaskItem({ task, projectColor, onToggle, onEdit, onDelete }: {
           <div style={{ width: 6, height: 6, borderRadius: '50%', background: projectColor, flexShrink: 0 }} />
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.project}</span>
         </div>
+
+        {/* Focus button — visible on hover */}
+        {showFocusBtn && !task.done && (
+          <button
+            onClick={() => onFocus(task)}
+            title="Start focus session (Pomodoro)"
+            style={{
+              width: 28, height: 28, borderRadius: 6, border: 'none',
+              background: 'var(--accent-soft)', color: 'var(--accent)',
+              display: 'grid', placeItems: 'center', cursor: 'pointer',
+              transition: 'all 0.12s', flexShrink: 0,
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'var(--accent)'; e.currentTarget.style.color = '#fff'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'var(--accent-soft)'; e.currentTarget.style.color = 'var(--accent)'; }}
+          >
+            <Icon name="focus" size={13} />
+          </button>
+        )}
 
         {/* Three-dot menu */}
         <div ref={menuRef} style={{ position: 'relative' }}>
@@ -191,7 +214,8 @@ export default function TasksPage() {
   const [projectFilter,  setProjectFilter]  = useState<string>('');
   const [filterOpen,     setFilterOpen]     = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [editingTask,  setEditingTask]  = useState<Task | null>(null);
+  const [focusTask,    setFocusTask]    = useState<Task | null>(null);
   const [showCamera, setShowCamera] = useState(false);
   const [extractedTasks, setExtractedTasks] = useState<ExtractedTask[]>([]);
   const [showReview, setShowReview] = useState(false);
@@ -532,6 +556,7 @@ export default function TasksPage() {
                     onToggle={onToggle}
                     onEdit={setEditingTask}
                     onDelete={onDelete}
+                    onFocus={setFocusTask}
                   />
                 ))}
               </div>
@@ -552,6 +577,7 @@ export default function TasksPage() {
 
       {showAddModal && <TaskModal onAdd={onAdd} onClose={() => setShowAddModal(false)} />}
       {editingTask  && <TaskModal editTask={editingTask} onEdit={onEditSave} onClose={() => setEditingTask(null)} />}
+      {focusTask    && <PomodoroTimer task={focusTask} onClose={() => setFocusTask(null)} />}
 
       {/* Photo-to-task feature */}
       {showCamera && (
