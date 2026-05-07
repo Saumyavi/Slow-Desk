@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { Resend } from 'resend';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { getWeeklyRetrospectiveEmail } from '@/lib/emails/weekly-retrospective';
 
 export async function GET(request: Request) {
@@ -109,19 +110,50 @@ async function generateRetrospectiveData(
 
   const activeProjects = (projects || []).filter((p: any) => p.status === 'active').length;
 
-  const insights: string[] = [];
-  if (completedTasks.length > 10) {
-    insights.push("You're on fire! 🔥 Over 10 tasks completed this week.");
-  } else if (completedTasks.length > 5) {
-    insights.push('Solid week! You completed a good number of tasks.');
-  } else if (completedTasks.length === 0) {
-    insights.push("Looks like you took it slow this week. That's okay too!");
+  const totalTasks = completedTasks.length + pendingTasks.length;
+  const completionRate = totalTasks > 0 ? Math.round((completedTasks.length / totalTasks) * 100) : 0;
+
+  let aiInsight = '';
+  const geminiKey = process.env.GEMINI_API_KEY;
+  if (geminiKey) {
+    try {
+      const genAI = new GoogleGenerativeAI(geminiKey);
+      const model = genAI.getGenerativeModel(
+        { model: 'gemini-2.5-flash' },
+        { apiVersion: 'v1beta' },
+      );
+      const dataLines = [
+        `Tasks completed: ${completedTasks.length} of ${totalTasks} (${completionRate}%)`,
+        habitStats.length > 0
+          ? `Habits: ${habitStats.map((h: { name: string; percentage: number }) => `${h.name} ${h.percentage}%`).join(', ')}`
+          : 'No habits tracked this week',
+        (oldPendingTasks || []).length > 0
+          ? `Overdue tasks (waiting over a week): ${(oldPendingTasks || []).length}`
+          : '',
+        activeProjects > 0 ? `Active projects: ${activeProjects}` : '',
+      ].filter(Boolean).join('\n');
+
+      const prompt = `You are a warm, thoughtful productivity coach writing a weekly insight for a user's retrospective email. Here is their week in data:\n\n${dataLines}\n\nWrite a single flowing paragraph — exactly 2 sentences — that:\n- Notices a real pattern or tension in the numbers (don't just restate them)\n- Gives one specific, encouraging nudge for next week\n- Sounds human and personal, not corporate or generic\n- Does NOT begin with the word "You"\n- Has no emoji, no bullet points, no headers`;
+
+      const result = await model.generateContent(prompt);
+      aiInsight = result.response.text().trim();
+    } catch {
+      // fall through to static fallback
+    }
   }
-  if (strugglingHabits.length > 0) {
-    insights.push(`Having trouble with ${strugglingHabits[0].name}? Try making it easier or more enjoyable.`);
-  }
-  if (oldPendingTasks && oldPendingTasks.length > 3) {
-    insights.push('You have some tasks that have been waiting for a while. Time to tackle them or let them go?');
+
+  if (!aiInsight) {
+    if (completedTasks.length === 0) {
+      aiInsight = "A quiet week is still a week lived — sometimes stepping back is exactly what you need. Come back Monday with one clear intention and let that carry the momentum.";
+    } else if (completionRate >= 80) {
+      aiInsight = `Finishing ${completionRate}% of tasks is a genuinely strong result — that kind of consistency compounds over time. Carry the same focus into next week and see what's possible.`;
+    } else if (strugglingHabits.length > 0) {
+      aiInsight = `The numbers show solid task progress, but ${strugglingHabits[0].name} slipped this week. Try attaching it to something you already do every day — habits stick when they piggyback on existing routines.`;
+    } else if ((oldPendingTasks || []).length > 3) {
+      aiInsight = "A few tasks have been sitting for a while, quietly accumulating weight. Pick one this week — either close it out or consciously let it go.";
+    } else {
+      aiInsight = "Progress is progress, no matter the pace. What's one thing you can close out by Wednesday next week?";
+    }
   }
 
   const isAllComplete = completedTasks.length > 0 && pendingTasks.length === 0 && strugglingHabits.length === 0;
@@ -138,7 +170,7 @@ async function generateRetrospectiveData(
     habitStats,
     strugglingHabits,
     activeProjects,
-    insights,
+    aiInsight,
     isAllComplete,
     weekStart: weekAgo.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
     weekEnd: today.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),

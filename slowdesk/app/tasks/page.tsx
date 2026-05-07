@@ -12,6 +12,7 @@ import TaskModal from '@/components/TaskModal';
 import PomodoroTimer from '@/components/PomodoroTimer';
 import CameraCapture from '@/components/CameraCapture';
 import TaskReview from '@/components/TaskReview';
+import VoiceCapture from '@/components/VoiceCapture';
 
 type Filter = 'all' | 'today' | 'upcoming' | 'completed';
 
@@ -492,6 +493,7 @@ export default function TasksPage() {
   const [editingTask,  setEditingTask]  = useState<Task | null>(null);
   const [focusTask,    setFocusTask]    = useState<Task | null>(null);
   const [showCamera, setShowCamera] = useState(false);
+  const [showVoice,  setShowVoice]  = useState(false);
   const [extractedTasks, setExtractedTasks] = useState<ExtractedTask[]>([]);
   const [showReview, setShowReview] = useState(false);
   const [userId,       setUserId]       = useState<string | null>(null);
@@ -681,6 +683,20 @@ export default function TasksPage() {
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="btn btn-secondary" onClick={() => setShowCamera(true)}>
               <Icon name="camera" size={14} /> Scan
+            </button>
+            <button
+              className="btn btn-secondary"
+              onClick={() => setShowVoice(true)}
+              title="Speak a task"
+              style={{ gap: 6 }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                <line x1="12" y1="19" x2="12" y2="23"/>
+                <line x1="8" y1="23" x2="16" y2="23"/>
+              </svg>
+              Voice
             </button>
             <button className="btn btn-primary" onClick={() => setShowAddModal(true)}>
               <Icon name="plus" size={14} /> New task
@@ -907,6 +923,7 @@ export default function TasksPage() {
       {showAddModal && <TaskModal onAdd={onAdd} onClose={() => setShowAddModal(false)} />}
       {editingTask  && <TaskModal editTask={editingTask} onEdit={onEditSave} onClose={() => setEditingTask(null)} />}
       {focusTask    && <PomodoroTimer task={focusTask} onClose={() => setFocusTask(null)} />}
+      {showVoice    && <VoiceCapture onTaskCreated={onAdd} onClose={() => setShowVoice(false)} />}
 
       {/* Photo-to-task feature */}
       {showCamera && (

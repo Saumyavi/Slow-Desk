@@ -5,7 +5,8 @@ import { gsap } from 'gsap';
 import { createClient } from '@/lib/supabase/client';
 import Icon, { IconName } from './Icon';
 import { useApp } from '@/lib/store';
-import { HABITS } from '@/lib/data';
+import { HABITS, Note } from '@/lib/data';
+import * as db from '@/lib/supabase/db';
 
 /* ── Search modal ────────────────────────────────────────── */
 function ResultGroup({ label, children }: { label: string; children: ReactNode }) {
@@ -45,6 +46,7 @@ function ResultItem({ icon, title, subtitle, faded, onClick }: {
 
 function SearchModal({ onClose }: { onClose: () => void }) {
   const [query, setQuery] = useState('');
+  const [notes, setNotes] = useState<Note[]>([]);
   const inputRef   = useRef<HTMLInputElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const panelRef   = useRef<HTMLDivElement>(null);
@@ -58,6 +60,13 @@ function SearchModal({ onClose }: { onClose: () => void }) {
       { y: 0, opacity: 1, scale: 1, duration: 0.22, ease: 'power3.out' }
     );
     setTimeout(() => inputRef.current?.focus(), 30);
+
+    const supabase = createClient();
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) return;
+      const n = await db.getNotes(user.id);
+      setNotes(n);
+    });
   }, []);
 
   const close = useCallback(() => {
@@ -81,7 +90,8 @@ function SearchModal({ onClose }: { onClose: () => void }) {
   const tasks    = q ? storeTasks.filter(t => t.title.toLowerCase().includes(q) || t.project.toLowerCase().includes(q)).slice(0, 4) : [];
   const projects = q ? storeProjects.filter(p => p.name.toLowerCase().includes(q)).slice(0, 3) : [];
   const habits   = q ? HABITS.filter(h => h.name.toLowerCase().includes(q)).slice(0, 3) : [];
-  const hasResults = tasks.length + projects.length + habits.length > 0;
+  const filteredNotes = q ? notes.filter(n => n.title.toLowerCase().includes(q) || n.preview.toLowerCase().includes(q)).slice(0, 3) : [];
+  const hasResults = tasks.length + projects.length + habits.length + filteredNotes.length > 0;
 
   const quickLinks: { icon: IconName; label: string; href: string }[] = [
     { icon: 'list',      label: 'All Tasks',   href: '/tasks' },
@@ -110,7 +120,7 @@ function SearchModal({ onClose }: { onClose: () => void }) {
             ref={inputRef}
             value={query}
             onChange={e => setQuery(e.target.value)}
-            placeholder="Search tasks, projects, habits…"
+            placeholder="Search tasks, notes, projects…"
             style={{
               flex: 1, border: 'none', background: 'transparent',
               fontSize: 15, color: 'var(--ink)', outline: 'none', fontFamily: 'var(--font-sans)',
@@ -151,6 +161,14 @@ function SearchModal({ onClose }: { onClose: () => void }) {
             <ResultGroup label="Tasks">
               {tasks.map(t => (
                 <ResultItem key={t.id} icon="list" title={t.title} subtitle={t.project} faded={t.done} onClick={() => navigate('/tasks')} />
+              ))}
+            </ResultGroup>
+          )}
+
+          {filteredNotes.length > 0 && (
+            <ResultGroup label="Notes">
+              {filteredNotes.map(n => (
+                <ResultItem key={n.id} icon="notes" title={n.title} subtitle={n.preview.slice(0, 72)} onClick={() => navigate('/notes')} />
               ))}
             </ResultGroup>
           )}

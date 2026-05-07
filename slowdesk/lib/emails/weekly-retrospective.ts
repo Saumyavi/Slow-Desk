@@ -7,7 +7,7 @@ export function getWeeklyRetrospectiveEmail(data: {
   habitStats: Array<{ name: string; completedDays: number; totalDays: number; percentage: number }>;
   strugglingHabits: Array<{ name: string; percentage: number }>;
   activeProjects: number;
-  insights: string[];
+  aiInsight: string;
   isAllComplete: boolean;
   weekStart: string;
   weekEnd: string;
@@ -20,7 +20,7 @@ export function getWeeklyRetrospectiveEmail(data: {
     avoidedTasks,
     habitStats,
     strugglingHabits,
-    insights,
+    aiInsight,
     isAllComplete,
     weekStart,
     weekEnd,
@@ -205,11 +205,11 @@ export function getWeeklyRetrospectiveEmail(data: {
             </div>
             ` : ''}
 
-            ${insights.length > 0 ? `
-            <!-- ── INSIGHT (single card, most impactful) ── -->
+            ${aiInsight ? `
+            <!-- ── AI INSIGHT ── -->
             <div style="background:linear-gradient(135deg,rgba(193,98,63,0.08) 0%,rgba(201,148,58,0.06) 100%);border-left:3px solid ${colors.primary};border-radius:0 12px 12px 0;padding:18px 20px;margin-bottom:28px;">
-              <p style="margin:0 0 4px;font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${colors.primary};">Insight</p>
-              <p style="margin:0;font-size:14px;color:${colors.text};line-height:1.7;">${escapeHtml(insights[0])}</p>
+              <p style="margin:0 0 4px;font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${colors.primary};">✦ Weekly Insight</p>
+              <p style="margin:0;font-size:14px;color:${colors.text};line-height:1.7;">${escapeHtml(aiInsight)}</p>
             </div>
             ` : ''}
 
