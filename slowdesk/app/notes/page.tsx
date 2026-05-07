@@ -292,8 +292,11 @@ export default function NotesPage() {
   const [aiQuestion, setAiQuestion] = useState('');
   const [aiResponse, setAiResponse] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
-  const [extractedTasks, setExtractedTasks] = useState<string[]>([]);
-  const [addedTasks, setAddedTasks] = useState<Set<string>>(new Set());
+  const [extractedTasks,  setExtractedTasks]  = useState<string[]>([]);
+  const [addedTasks,      setAddedTasks]      = useState<Set<string>>(new Set());
+  const [projectName,     setProjectName]     = useState('');
+  const [creatingProject, setCreatingProject] = useState(false);
+  const [projectCreated,  setProjectCreated]  = useState(false);
 
   const runAI = async (action: AiAction, question?: string) => {
     setAiAction(action);
@@ -339,6 +342,8 @@ export default function NotesPage() {
           .map(l => l.replace(/^-\s+/, '').trim())
           .filter(Boolean);
         setExtractedTasks(tasks);
+        setProjectName(activeNote?.title || '');
+        setProjectCreated(false);
       }
     } catch {
       setAiResponse('Error: Could not reach AI service.');
@@ -350,6 +355,25 @@ export default function NotesPage() {
   const handleAddExtractedTask = async (taskTitle: string) => {
     await onAddTask({ title: taskTitle, done: false, priority: 'medium', project: '', tone: 'terra', attach: 0, due: 'someday', time: '' });
     setAddedTasks(prev => new Set(prev).add(taskTitle));
+  };
+
+  const createProjectWithTasks = async () => {
+    if (!userId || !projectName.trim() || extractedTasks.length === 0) return;
+    setCreatingProject(true);
+    try {
+      const name = projectName.trim();
+      await db.createProject(userId, {
+        name, short: name.slice(0, 2).toUpperCase(),
+        tone: 'terra', due: 'Ongoing',
+        desc: `Created from note: ${activeNote?.title || ''}`,
+      });
+      for (const title of extractedTasks) {
+        await onAddTask({ title, done: false, priority: 'medium', project: name, tone: 'terra', attach: 0, due: 'someday', time: '' });
+      }
+      setAddedTasks(new Set(extractedTasks));
+      setProjectCreated(true);
+    } catch (err) { console.error(err); }
+    setCreatingProject(false);
   };
 
   const wordCount = (content[activeId] || '').trim().split(/\s+/).filter(Boolean).length;
@@ -742,6 +766,61 @@ export default function NotesPage() {
                             )}
                           </div>
                         ))}
+
+                        {/* create project suggestion */}
+                        <div style={{
+                          marginTop: 6, padding: '12px 14px', borderRadius: 10,
+                          background: 'linear-gradient(135deg, rgba(193,98,63,0.06) 0%, rgba(201,148,58,0.05) 100%)',
+                          border: '1.5px solid rgba(193,98,63,0.2)',
+                        }}>
+                          {projectCreated ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <Icon name="check" size={13} />
+                              <span style={{ fontSize: 12, color: '#7a9e7e', fontWeight: 600 }}>
+                                Project created with all {extractedTasks.length} tasks!
+                              </span>
+                            </div>
+                          ) : (
+                            <>
+                              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink)', marginBottom: 8 }}>
+                                Group all as a project?
+                              </div>
+                              <div style={{ fontSize: 11, color: 'var(--ink-faint)', marginBottom: 10, lineHeight: 1.5 }}>
+                                Create a project and add all {extractedTasks.length} extracted tasks under it.
+                              </div>
+                              <div style={{ display: 'flex', gap: 8 }}>
+                                <input
+                                  value={projectName}
+                                  onChange={e => setProjectName(e.target.value)}
+                                  placeholder="Project name…"
+                                  style={{
+                                    flex: 1, padding: '6px 10px', borderRadius: 7,
+                                    border: '1.5px solid var(--line)', background: 'var(--bg-sunk)',
+                                    fontSize: 12, color: 'var(--ink)', outline: 'none',
+                                    fontFamily: 'var(--font-sans)', transition: 'border-color 0.13s',
+                                  }}
+                                  onFocus={e => (e.currentTarget.style.borderColor = 'var(--accent)')}
+                                  onBlur={e => (e.currentTarget.style.borderColor = 'var(--line)')}
+                                />
+                                <button
+                                  onClick={createProjectWithTasks}
+                                  disabled={creatingProject || !projectName.trim()}
+                                  style={{
+                                    padding: '6px 14px', borderRadius: 7, border: 'none',
+                                    background: 'linear-gradient(135deg, #c1623f 0%, #c9943a 100%)',
+                                    color: '#fff', fontSize: 11, fontWeight: 700,
+                                    cursor: creatingProject || !projectName.trim() ? 'default' : 'pointer',
+                                    fontFamily: 'var(--font-sans)', whiteSpace: 'nowrap',
+                                    opacity: creatingProject || !projectName.trim() ? 0.5 : 1,
+                                    transition: 'opacity 0.13s',
+                                  }}
+                                >
+                                  {creatingProject ? 'Creating…' : '✦ Create project'}
+                                </button>
+                              </div>
+                            </>
+                          )}
+                        </div>
                       </div>
                     )}
                     {aiAction === 'extract' && aiLoading && (

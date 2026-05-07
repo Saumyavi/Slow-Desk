@@ -2,7 +2,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { gsap } from 'gsap';
 import { useApp } from '@/lib/store';
-import { TONE_COLORS, Task } from '@/lib/data';
+import { TONE_COLORS, Task, SubTask } from '@/lib/data';
 import { createClient } from '@/lib/supabase/client';
 import * as db from '@/lib/supabase/db';
 import { ExtractedTask } from '@/lib/task-parser';
@@ -16,19 +16,36 @@ import TaskReview from '@/components/TaskReview';
 type Filter = 'all' | 'today' | 'upcoming' | 'completed';
 
 /* ── Task row ──────────────────────────────────────────── */
-function TaskItem({ task, projectColor, onToggle, onEdit, onDelete, onFocus }: {
+function TaskItem({ task, projectColor, onToggle, onEdit, onDelete, onFocus, subtasks, onAddSubtask, onToggleSubtask, onDeleteSubtask, isNew, onDismissNew }: {
   task: Task;
   projectColor: string;
   onToggle: (id: string) => void;
   onEdit: (task: Task) => void;
   onDelete: (id: string) => void;
   onFocus: (task: Task) => void;
+  subtasks: SubTask[];
+  onAddSubtask: (taskId: string, title: string) => void;
+  onToggleSubtask: (subtaskId: string, done: boolean) => void;
+  onDeleteSubtask: (subtaskId: string) => void;
+  isNew?: boolean;
+  onDismissNew?: () => void;
 }) {
   const rowRef   = useRef<HTMLDivElement>(null);
   const checkRef = useRef<HTMLButtonElement>(null);
   const menuRef  = useRef<HTMLDivElement>(null);
-  const [menuOpen,    setMenuOpen]    = useState(false);
-  const [showFocusBtn, setShowFocusBtn] = useState(false);
+  const inputRef    = useRef<HTMLInputElement>(null);
+  const [menuOpen,        setMenuOpen]        = useState(false);
+  const [showFocusBtn,    setShowFocusBtn]    = useState(false);
+  const [showPanel,       setShowPanel]       = useState(false);
+  const [breaking,        setBreaking]        = useState(false);
+  const [suggestions,     setSuggestions]     = useState<string[]>([]);
+  const [selected,        setSelected]        = useState<Set<string>>(new Set());
+  const [addingSubtask,   setAddingSubtask]   = useState(false);
+  const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
+
+  const doneCount  = subtasks.filter(s => s.done).length;
+  const totalCount = subtasks.length;
+  const progress   = totalCount > 0 ? doneCount / totalCount : 0;
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -38,6 +55,16 @@ function TaskItem({ task, projectColor, onToggle, onEdit, onDelete, onFocus }: {
     document.addEventListener('mousedown', close);
     return () => document.removeEventListener('mousedown', close);
   }, [menuOpen]);
+
+  useEffect(() => {
+    if (addingSubtask) setTimeout(() => inputRef.current?.focus(), 40);
+  }, [addingSubtask]);
+
+  useEffect(() => {
+    if (!isNew) return;
+    const t = setTimeout(() => onDismissNew?.(), 8000);
+    return () => clearTimeout(t);
+  }, [isNew]);
 
   const handleToggle = () => {
     if (!task.done && checkRef.current) {
@@ -56,6 +83,57 @@ function TaskItem({ task, projectColor, onToggle, onEdit, onDelete, onFocus }: {
     });
   };
 
+  const commitSubtask = () => {
+    const t = newSubtaskTitle.trim();
+    if (!t) { setAddingSubtask(false); return; }
+    onAddSubtask(task.id, t);
+    setNewSubtaskTitle('');
+    setAddingSubtask(false);
+  };
+
+  const handleAIBreak = async () => {
+    if (showPanel && !breaking) { setShowPanel(false); return; }
+    setShowPanel(true);
+    setSuggestions([]);
+    setSelected(new Set());
+    setBreaking(true);
+
+    try {
+      const res = await fetch('/api/tasks/breakdown', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taskTitle: task.title, projectName: task.project }),
+      });
+      if (!res.ok || !res.body) { setBreaking(false); return; }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let full = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        full += decoder.decode(value, { stream: true });
+      }
+
+      const parsed = full
+        .split('\n')
+        .filter(l => l.trim().startsWith('- '))
+        .map(l => l.replace(/^-\s+/, '').trim())
+        .filter(Boolean);
+
+      setSuggestions(parsed);
+      setSelected(new Set(parsed));
+    } catch { /* silent */ }
+
+    setBreaking(false);
+  };
+
+  const addSelected = () => {
+    suggestions.filter(s => selected.has(s)).forEach(s => onAddSubtask(task.id, s));
+    setSuggestions([]);
+    setSelected(new Set());
+  };
+
   const showTime = task.time && task.time !== '—';
 
   return (
@@ -63,144 +141,341 @@ function TaskItem({ task, projectColor, onToggle, onEdit, onDelete, onFocus }: {
       ref={rowRef}
       data-taskrow
       style={{
-        display: 'flex', alignItems: 'center', gap: 12,
-        padding: '13px 16px',
-        background: 'var(--bg-elev)',
-        borderRadius: 10,
-        border: '1px solid var(--line)',
-        transition: 'border-color 0.15s, box-shadow 0.15s',
+        background: 'var(--bg-elev)', borderRadius: 10, border: '1px solid var(--line)',
+        transition: 'border-color 0.15s, box-shadow 0.15s', overflow: 'hidden',
       }}
-      onMouseEnter={e => {
-        e.currentTarget.style.borderColor = 'rgba(193,98,63,0.25)';
-        e.currentTarget.style.boxShadow = '0 2px 12px rgba(0,0,0,0.06)';
-        setShowFocusBtn(true);
-      }}
-      onMouseLeave={e => {
-        e.currentTarget.style.borderColor = 'var(--line)';
-        e.currentTarget.style.boxShadow = 'none';
-        setShowFocusBtn(false);
-      }}
+      onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(193,98,63,0.25)'; e.currentTarget.style.boxShadow = '0 2px 12px rgba(0,0,0,0.06)'; setShowFocusBtn(true); }}
+      onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--line)'; e.currentTarget.style.boxShadow = 'none'; setShowFocusBtn(false); }}
     >
-      {/* Checkbox */}
-      <button
-        ref={checkRef}
-        onClick={handleToggle}
-        style={{
-          width: 18, height: 18, borderRadius: 4, flexShrink: 0,
-          border: task.done ? 'none' : '1.5px solid var(--ink-faint)',
-          background: task.done ? 'var(--accent)' : 'transparent',
-          display: 'grid', placeItems: 'center', cursor: 'pointer',
-          transition: 'all 0.15s',
-        }}
-      >
-        {task.done && <Icon name="check" size={10} style={{ color: '#fff' }} />}
-      </button>
+      {/* ── Main row ── */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 16px' }}>
+        {/* Checkbox */}
+        <button
+          ref={checkRef}
+          onClick={handleToggle}
+          style={{
+            width: 18, height: 18, borderRadius: 4, flexShrink: 0,
+            border: task.done ? 'none' : '1.5px solid var(--ink-faint)',
+            background: task.done ? 'var(--accent)' : 'transparent',
+            display: 'grid', placeItems: 'center', cursor: 'pointer', transition: 'all 0.15s',
+          }}
+        >
+          {task.done && <Icon name="check" size={10} style={{ color: '#fff' }} />}
+        </button>
 
-      {/* Title + meta */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{
-          fontSize: 13, fontWeight: 500,
-          color: task.done ? 'var(--ink-faint)' : 'var(--ink)',
-          textDecoration: task.done ? 'line-through' : 'none',
-          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-          marginBottom: 3,
-        }}>{task.title}</div>
-        <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
-          {showTime && (
-            <span style={{ fontSize: 11, color: 'var(--ink-faint)', fontFamily: 'var(--font-mono)' }}>{task.time}</span>
-          )}
-          {task.attach > 0 && (
-            <>
-              {showTime && <span style={{ fontSize: 11, color: 'var(--ink-faint)', opacity: 0.4 }}>·</span>}
-              <span style={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: 11, color: 'var(--ink-faint)' }}>
-                <Icon name="paperclip" size={10} />{task.attach}
+        {/* Title + meta */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{
+            fontSize: 13, fontWeight: 500,
+            color: task.done ? 'var(--ink-faint)' : 'var(--ink)',
+            textDecoration: task.done ? 'line-through' : 'none',
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            marginBottom: totalCount > 0 ? 5 : 3,
+          }}>{task.title}</div>
+
+          {/* Subtask progress bar */}
+          {totalCount > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ flex: 1, height: 3, borderRadius: 2, background: 'var(--line)', maxWidth: 120 }}>
+                <div style={{
+                  height: '100%', borderRadius: 2,
+                  background: doneCount === totalCount ? '#7a9e7e' : 'var(--accent)',
+                  width: `${progress * 100}%`, transition: 'width 0.3s ease',
+                }} />
+              </div>
+              <span style={{ fontSize: 10, color: 'var(--ink-faint)', fontFamily: 'var(--font-mono)', flexShrink: 0 }}>
+                {doneCount}/{totalCount}
               </span>
-            </>
+            </div>
           )}
-        </div>
-      </div>
 
-      {/* Right meta */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-        {/* Project chip */}
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 5,
-          padding: '3px 10px', borderRadius: 20,
-          background: projectColor + '18',
-          border: `1px solid ${projectColor}40`,
-          fontSize: 11, fontWeight: 500, color: 'var(--ink-soft)',
-          maxWidth: 160,
-        }}>
-          <div style={{ width: 6, height: 6, borderRadius: '50%', background: projectColor, flexShrink: 0 }} />
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.project}</span>
-        </div>
-
-        {/* Focus button — visible on hover */}
-        {showFocusBtn && !task.done && (
-          <button
-            onClick={() => onFocus(task)}
-            title="Start focus session (Pomodoro)"
-            style={{
-              width: 28, height: 28, borderRadius: 6, border: 'none',
-              background: 'var(--accent-soft)', color: 'var(--accent)',
-              display: 'grid', placeItems: 'center', cursor: 'pointer',
-              transition: 'all 0.12s', flexShrink: 0,
-            }}
-            onMouseEnter={e => { e.currentTarget.style.background = 'var(--accent)'; e.currentTarget.style.color = '#fff'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'var(--accent-soft)'; e.currentTarget.style.color = 'var(--accent)'; }}
-          >
-            <Icon name="focus" size={13} />
-          </button>
-        )}
-
-        {/* Three-dot menu */}
-        <div ref={menuRef} style={{ position: 'relative' }}>
-          <button
-            onClick={() => setMenuOpen(m => !m)}
-            style={{
-              width: 28, height: 28, borderRadius: 6, border: 'none',
-              background: menuOpen ? 'var(--bg-sunk)' : 'transparent',
-              cursor: 'pointer', display: 'grid', placeItems: 'center',
-              color: 'var(--ink-faint)', transition: 'all 0.12s',
-            }}
-            onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-sunk)')}
-            onMouseLeave={e => { if (!menuOpen) e.currentTarget.style.background = 'transparent'; }}
-          >
-            <Icon name="more" size={15} />
-          </button>
-          {menuOpen && (
-            <div style={{
-              position: 'absolute', right: 0, top: 32, zIndex: 200,
-              background: 'var(--bg-elev)', border: '1px solid var(--line)',
-              borderRadius: 8, padding: 4,
-              boxShadow: '0 8px 24px rgba(0,0,0,0.14)', minWidth: 130,
-            }}>
-              <button onClick={() => { onEdit(task); setMenuOpen(false); }} style={{
-                display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-                padding: '7px 10px', borderRadius: 6, border: 'none',
-                background: 'transparent', cursor: 'pointer',
-                fontSize: 12, color: 'var(--ink)', fontFamily: 'var(--font-sans)', textAlign: 'left',
-              }}
-                onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-sunk)')}
-                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-              >
-                <Icon name="edit" size={12} /> Edit
-              </button>
-              <button onClick={() => { handleDelete(); setMenuOpen(false); }} style={{
-                display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-                padding: '7px 10px', borderRadius: 6, border: 'none',
-                background: 'transparent', cursor: 'pointer',
-                fontSize: 12, color: '#e05c3c', fontFamily: 'var(--font-sans)', textAlign: 'left',
-              }}
-                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(224,92,60,0.08)')}
-                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-              >
-                <Icon name="trash" size={12} /> Delete
-              </button>
+          {totalCount === 0 && (
+            <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+              {showTime && <span style={{ fontSize: 11, color: 'var(--ink-faint)', fontFamily: 'var(--font-mono)' }}>{task.time}</span>}
+              {task.attach > 0 && (
+                <>
+                  {showTime && <span style={{ fontSize: 11, color: 'var(--ink-faint)', opacity: 0.4 }}>·</span>}
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: 11, color: 'var(--ink-faint)' }}>
+                    <Icon name="paperclip" size={10} />{task.attach}
+                  </span>
+                </>
+              )}
             </div>
           )}
         </div>
+
+        {/* Right meta */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          {/* Project chip */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 5,
+            padding: '3px 10px', borderRadius: 20,
+            background: projectColor + '18', border: `1px solid ${projectColor}40`,
+            fontSize: 11, fontWeight: 500, color: 'var(--ink-soft)', maxWidth: 140,
+          }}>
+            <div style={{ width: 6, height: 6, borderRadius: '50%', background: projectColor, flexShrink: 0 }} />
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.project}</span>
+          </div>
+
+          {/* Focus button — visible on hover */}
+          {showFocusBtn && !task.done && (
+            <button
+              onClick={() => onFocus(task)}
+              title="Start focus session (Pomodoro)"
+              style={{
+                width: 28, height: 28, borderRadius: 6, border: 'none',
+                background: 'var(--accent-soft)', color: 'var(--accent)',
+                display: 'grid', placeItems: 'center', cursor: 'pointer',
+                transition: 'all 0.12s', flexShrink: 0,
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'var(--accent)'; e.currentTarget.style.color = '#fff'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'var(--accent-soft)'; e.currentTarget.style.color = 'var(--accent)'; }}
+            >
+              <Icon name="focus" size={13} />
+            </button>
+          )}
+
+          {/* AI break-into-steps button */}
+          <button
+            onClick={handleAIBreak}
+            title="Break into steps with AI"
+            style={{
+              width: 28, height: 28, borderRadius: 6, border: 'none',
+              background: showPanel ? 'var(--accent-soft)' : 'transparent',
+              cursor: 'pointer', display: 'grid', placeItems: 'center',
+              color: showPanel ? 'var(--accent)' : 'var(--ink-faint)', transition: 'all 0.13s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'var(--accent-soft)'; e.currentTarget.style.color = 'var(--accent)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = showPanel ? 'var(--accent-soft)' : 'transparent'; e.currentTarget.style.color = showPanel ? 'var(--accent)' : 'var(--ink-faint)'; }}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+              <path d="m12 3 1.9 5.3L19 10l-5.1 1.7L12 17l-1.9-5.3L5 10l5.1-1.7z"/>
+            </svg>
+          </button>
+
+          {/* Three-dot menu */}
+          <div ref={menuRef} style={{ position: 'relative' }}>
+            <button
+              onClick={() => setMenuOpen(m => !m)}
+              style={{
+                width: 28, height: 28, borderRadius: 6, border: 'none',
+                background: menuOpen ? 'var(--bg-sunk)' : 'transparent',
+                cursor: 'pointer', display: 'grid', placeItems: 'center',
+                color: 'var(--ink-faint)', transition: 'all 0.12s',
+              }}
+              onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-sunk)')}
+              onMouseLeave={e => { if (!menuOpen) e.currentTarget.style.background = 'transparent'; }}
+            >
+              <Icon name="more" size={15} />
+            </button>
+            {menuOpen && (
+              <div style={{
+                position: 'absolute', right: 0, top: 32, zIndex: 200,
+                background: 'var(--bg-elev)', border: '1px solid var(--line)',
+                borderRadius: 8, padding: 4,
+                boxShadow: '0 8px 24px rgba(0,0,0,0.14)', minWidth: 130,
+              }}>
+                <button onClick={() => { onEdit(task); setMenuOpen(false); }} style={{
+                  display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                  padding: '7px 10px', borderRadius: 6, border: 'none', background: 'transparent',
+                  cursor: 'pointer', fontSize: 12, color: 'var(--ink)', fontFamily: 'var(--font-sans)', textAlign: 'left',
+                }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-sunk)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                >
+                  <Icon name="edit" size={12} /> Edit
+                </button>
+                <button onClick={() => { handleDelete(); setMenuOpen(false); }} style={{
+                  display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                  padding: '7px 10px', borderRadius: 6, border: 'none', background: 'transparent',
+                  cursor: 'pointer', fontSize: 12, color: '#e05c3c', fontFamily: 'var(--font-sans)', textAlign: 'left',
+                }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(224,92,60,0.08)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                >
+                  <Icon name="trash" size={12} /> Delete
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
+
+      {/* ── New task AI suggestion strip ── */}
+      {isNew && !showPanel && subtasks.length === 0 && (
+        <div style={{
+          borderTop: '1px solid var(--line)',
+          padding: '8px 16px 8px 44px',
+          display: 'flex', alignItems: 'center', gap: 10,
+          background: 'linear-gradient(90deg, rgba(193,98,63,0.05) 0%, transparent 100%)',
+          animation: 'aiTipIn 0.25s ease-out',
+        }}>
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" style={{ color: 'var(--accent)', flexShrink: 0, opacity: 0.8 }}>
+            <path d="m12 3 1.9 5.3L19 10l-5.1 1.7L12 17l-1.9-5.3L5 10l5.1-1.7z"/>
+          </svg>
+          <span style={{ fontSize: 11.5, color: 'var(--ink-soft)', flex: 1 }}>
+            Want to break this into steps with AI?
+          </span>
+          <button
+            onClick={() => { onDismissNew?.(); handleAIBreak(); }}
+            style={{
+              padding: '3px 10px', borderRadius: 6, border: 'none',
+              background: 'linear-gradient(135deg, #c1623f 0%, #c9943a 100%)',
+              color: '#fff', fontSize: 11, fontWeight: 700,
+              cursor: 'pointer', fontFamily: 'var(--font-sans)', whiteSpace: 'nowrap',
+              boxShadow: '0 1px 6px rgba(193,98,63,0.3)',
+            }}
+          >Break it down →</button>
+          <button
+            onClick={() => onDismissNew?.()}
+            style={{
+              width: 18, height: 18, borderRadius: 4, border: 'none',
+              background: 'transparent', cursor: 'pointer',
+              display: 'grid', placeItems: 'center', color: 'var(--ink-faint)',
+              flexShrink: 0,
+            }}
+          >
+            <Icon name="x" size={9} />
+          </button>
+        </div>
+      )}
+
+      {/* ── AI + subtask panel ── */}
+      {showPanel && (
+        <div style={{ borderTop: '1px solid var(--line)', background: 'var(--bg)', padding: '10px 16px 12px 44px' }}>
+
+          {/* Existing subtasks */}
+          {subtasks.map(st => (
+            <div key={st.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', borderBottom: '1px solid var(--line-soft)' }}>
+              <button
+                onClick={() => onToggleSubtask(st.id, !st.done)}
+                style={{
+                  width: 15, height: 15, borderRadius: 3, flexShrink: 0,
+                  border: st.done ? 'none' : '1.5px solid var(--ink-faint)',
+                  background: st.done ? '#7a9e7e' : 'transparent',
+                  display: 'grid', placeItems: 'center', cursor: 'pointer', transition: 'all 0.15s',
+                }}
+              >
+                {st.done && <Icon name="check" size={8} style={{ color: '#fff' }} />}
+              </button>
+              <span style={{ flex: 1, fontSize: 12.5, color: st.done ? 'var(--ink-faint)' : 'var(--ink-soft)', textDecoration: st.done ? 'line-through' : 'none' }}>{st.title}</span>
+              <button
+                onClick={() => onDeleteSubtask(st.id)}
+                style={{ width: 18, height: 18, borderRadius: 4, border: 'none', background: 'transparent', cursor: 'pointer', display: 'grid', placeItems: 'center', color: 'var(--ink-faint)', opacity: 0, transition: 'opacity 0.12s' }}
+                onMouseEnter={e => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.color = '#e05c3c'; }}
+                onMouseLeave={e => { e.currentTarget.style.opacity = '0'; e.currentTarget.style.color = 'var(--ink-faint)'; }}
+              >
+                <Icon name="x" size={10} />
+              </button>
+            </div>
+          ))}
+
+          {/* AI loading */}
+          {breaking && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0' }}>
+              <div style={{ display: 'flex', gap: 4 }}>
+                {[0, 0.15, 0.3].map((delay, i) => (
+                  <div key={i} style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--accent)', animation: `aiPulse 1.1s ease-in-out ${delay}s infinite` }} />
+                ))}
+              </div>
+              <span style={{ fontSize: 11, color: 'var(--ink-faint)', fontFamily: 'var(--font-mono)' }}>Breaking into steps…</span>
+            </div>
+          )}
+
+          {/* AI suggestions */}
+          {!breaking && suggestions.length > 0 && (
+            <div style={{ paddingTop: subtasks.length > 0 ? 8 : 2 }}>
+              <div style={{ fontSize: 11, color: 'var(--accent)', fontFamily: 'var(--font-mono)', fontWeight: 600, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="m12 3 1.9 5.3L19 10l-5.1 1.7L12 17l-1.9-5.3L5 10l5.1-1.7z"/></svg>
+                AI suggestions — tap to deselect
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 10 }}>
+                {suggestions.map(s => {
+                  const on = selected.has(s);
+                  return (
+                    <button
+                      key={s}
+                      onClick={() => setSelected(prev => { const n = new Set(prev); on ? n.delete(s) : n.add(s); return n; })}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 8,
+                        padding: '6px 10px', borderRadius: 7, border: 'none', textAlign: 'left',
+                        background: on ? 'var(--accent-soft)' : 'var(--bg-sunk)',
+                        cursor: 'pointer', transition: 'background 0.13s', fontFamily: 'var(--font-sans)',
+                      }}
+                    >
+                      <div style={{
+                        width: 14, height: 14, borderRadius: 3, flexShrink: 0,
+                        border: on ? 'none' : '1.5px solid var(--ink-faint)',
+                        background: on ? 'var(--accent)' : 'transparent',
+                        display: 'grid', placeItems: 'center', transition: 'all 0.15s',
+                      }}>
+                        {on && <Icon name="check" size={8} style={{ color: '#fff' }} />}
+                      </div>
+                      <span style={{ fontSize: 12.5, color: on ? 'var(--ink)' : 'var(--ink-soft)' }}>{s}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  onClick={addSelected}
+                  disabled={selected.size === 0}
+                  style={{
+                    padding: '5px 14px', borderRadius: 7, border: 'none',
+                    background: selected.size > 0 ? 'var(--accent)' : 'var(--line)',
+                    color: selected.size > 0 ? '#fff' : 'var(--ink-faint)',
+                    fontSize: 12, fontWeight: 600, cursor: selected.size > 0 ? 'pointer' : 'default',
+                    fontFamily: 'var(--font-sans)', transition: 'all 0.13s',
+                  }}
+                >
+                  Add {selected.size > 0 ? `${selected.size} step${selected.size > 1 ? 's' : ''}` : 'steps'}
+                </button>
+                <button
+                  onClick={() => { setSuggestions([]); setSelected(new Set()); }}
+                  style={{
+                    padding: '5px 12px', borderRadius: 7, border: '1px solid var(--line)',
+                    background: 'transparent', color: 'var(--ink-faint)',
+                    fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                  }}
+                >Discard</button>
+              </div>
+            </div>
+          )}
+
+          {/* Manual add — secondary option */}
+          {!breaking && suggestions.length === 0 && (
+            addingSubtask ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingTop: subtasks.length > 0 ? 6 : 2 }}>
+                <div style={{ width: 15, height: 15, borderRadius: 3, border: '1.5px solid var(--line)', flexShrink: 0 }} />
+                <input
+                  ref={inputRef}
+                  value={newSubtaskTitle}
+                  onChange={e => setNewSubtaskTitle(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') commitSubtask(); if (e.key === 'Escape') { setAddingSubtask(false); setNewSubtaskTitle(''); } }}
+                  onBlur={commitSubtask}
+                  placeholder="Step title…"
+                  style={{ flex: 1, border: 'none', background: 'transparent', outline: 'none', fontSize: 12.5, color: 'var(--ink)', fontFamily: 'var(--font-sans)' }}
+                />
+              </div>
+            ) : (
+              <button
+                onClick={() => setAddingSubtask(true)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 5,
+                  marginTop: subtasks.length > 0 ? 6 : 0,
+                  padding: '4px 0', border: 'none', background: 'transparent',
+                  cursor: 'pointer', color: 'var(--ink-faint)', fontSize: 11.5,
+                  fontFamily: 'var(--font-sans)', transition: 'color 0.13s',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.color = 'var(--ink-soft)')}
+                onMouseLeave={e => (e.currentTarget.style.color = 'var(--ink-faint)')}
+              >
+                <Icon name="plus" size={11} /> Add manually
+              </button>
+            )
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -219,13 +494,23 @@ export default function TasksPage() {
   const [showCamera, setShowCamera] = useState(false);
   const [extractedTasks, setExtractedTasks] = useState<ExtractedTask[]>([]);
   const [showReview, setShowReview] = useState(false);
-  const [userId, setUserId] = useState<string | null>(null);
+  const [userId,       setUserId]       = useState<string | null>(null);
+  const [subtasksMap,  setSubtasksMap]  = useState<Record<string, SubTask[]>>({});
+  const [newTaskId,    setNewTaskId]    = useState<string | null>(null);
   const listRef      = useRef<HTMLDivElement>(null);
   const filterBtnRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user) setUserId(user.id);
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) return;
+      setUserId(user.id);
+      const allSubtasks = await db.getSubtasksByUser(user.id);
+      const map: Record<string, SubTask[]> = {};
+      for (const st of allSubtasks) {
+        if (!map[st.task_id]) map[st.task_id] = [];
+        map[st.task_id].push(st);
+      }
+      setSubtasksMap(map);
     });
   }, []);
 
@@ -266,6 +551,7 @@ export default function TasksPage() {
     try {
       const newTask = await db.createTask(userId, partial);
       setTasks(prev => [{ ...partial, id: newTask.id }, ...prev]);
+      setNewTaskId(newTask.id);
     } catch (err) {
       console.error('Failed to create task:', err);
     }
@@ -281,6 +567,43 @@ export default function TasksPage() {
       console.error('Failed to update task:', err);
     }
   }, [userId, setTasks]);
+
+  const onAddSubtask = useCallback(async (taskId: string, title: string) => {
+    if (!userId) return;
+    try {
+      const pos = (subtasksMap[taskId]?.length ?? 0);
+      const st = await db.createSubtask(userId, taskId, title, pos);
+      setSubtasksMap(prev => ({ ...prev, [taskId]: [...(prev[taskId] ?? []), st] }));
+    } catch (err) { console.error(err); }
+  }, [userId, subtasksMap]);
+
+  const onToggleSubtask = useCallback(async (subtaskId: string, done: boolean) => {
+    if (!userId) return;
+    try {
+      await db.toggleSubtask(userId, subtaskId, done);
+      setSubtasksMap(prev => {
+        const next = { ...prev };
+        for (const tid in next) {
+          next[tid] = next[tid].map(s => s.id === subtaskId ? { ...s, done } : s);
+        }
+        return next;
+      });
+    } catch (err) { console.error(err); }
+  }, [userId]);
+
+  const onDeleteSubtask = useCallback(async (subtaskId: string) => {
+    if (!userId) return;
+    try {
+      await db.deleteSubtask(userId, subtaskId);
+      setSubtasksMap(prev => {
+        const next = { ...prev };
+        for (const tid in next) {
+          next[tid] = next[tid].filter(s => s.id !== subtaskId);
+        }
+        return next;
+      });
+    } catch (err) { console.error(err); }
+  }, [userId]);
 
   const handleTasksExtracted = useCallback((tasks: ExtractedTask[]) => {
     setExtractedTasks(tasks);
@@ -557,6 +880,12 @@ export default function TasksPage() {
                     onEdit={setEditingTask}
                     onDelete={onDelete}
                     onFocus={setFocusTask}
+                    subtasks={subtasksMap[t.id] ?? []}
+                    onAddSubtask={onAddSubtask}
+                    onToggleSubtask={onToggleSubtask}
+                    onDeleteSubtask={onDeleteSubtask}
+                    isNew={t.id === newTaskId}
+                    onDismissNew={() => setNewTaskId(null)}
                   />
                 ))}
               </div>
