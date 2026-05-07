@@ -39,6 +39,11 @@ const STEPS = [
     body: 'Capture ideas, meeting notes, and thoughts. Notes are private and saved automatically.',
   },
   {
+    icon: '✨',
+    title: 'AI Assistant',
+    body: 'Every note has a built-in AI panel — hit the ✦ AI button to summarize it, pull out action items, or ask questions. Extracted tasks can become a full project in one click. On any task, tap ✦ to get AI-suggested steps and add the ones that fit.',
+  },
+  {
     icon: '☕',
     title: 'Morning Ritual',
     body: 'Get a calm summary of today\'s tasks delivered to your email or WhatsApp each morning — exactly when your day starts. Set it up in Profile → Morning Ritual.',

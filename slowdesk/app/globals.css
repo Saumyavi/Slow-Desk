@@ -420,6 +420,8 @@ input, textarea { font-family: inherit; }
 
 .confetti-piece { position: fixed; pointer-events: none; z-index: 9999; border-radius: 2px; }
 @keyframes spin { to { transform: rotate(360deg); } }
+@keyframes aiPulse { 0%, 100% { opacity: 0.25; transform: scale(0.85); } 50% { opacity: 1; transform: scale(1); } }
+@keyframes aiTipIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
 
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }

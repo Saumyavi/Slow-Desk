@@ -143,6 +143,14 @@ export function parseRecurrenceFromTitle(input: string): { rule: string; cleanTi
   return null;
 }
 
+export interface SubTask {
+  id: string;
+  task_id: string;
+  title: string;
+  done: boolean;
+  position: number;
+}
+
 export interface Project {
   id: string;
   name: string;

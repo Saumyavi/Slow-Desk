@@ -303,6 +303,62 @@ export async function catchUpRecurringTasks(userId: string): Promise<Task[]> {
   return stale.length > 0 ? await getTasks(userId) : [];
 }
 
+// ========== SUBTASKS ==========
+
+export async function getSubtasksByUser(userId: string) {
+  const supabase = getClient();
+  const { data, error } = await supabase
+    .from('subtasks')
+    .select('*')
+    .eq('user_id', userId)
+    .order('position', { ascending: true });
+
+  if (error || !data) return [];
+
+  return data.map((s: any) => ({
+    id: s.id,
+    task_id: s.task_id,
+    title: s.title,
+    done: s.done,
+    position: s.position,
+  }));
+}
+
+export async function createSubtask(userId: string, taskId: string, title: string, position: number) {
+  const supabase = getClient();
+  const id = `st${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  const { data, error } = await supabase
+    .from('subtasks')
+    .insert({ id, user_id: userId, task_id: taskId, title, done: false, position })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return { id: data.id, task_id: data.task_id, title: data.title, done: data.done, position: data.position };
+}
+
+export async function toggleSubtask(userId: string, subtaskId: string, done: boolean) {
+  const supabase = getClient();
+  const { error } = await supabase
+    .from('subtasks')
+    .update({ done })
+    .eq('id', subtaskId)
+    .eq('user_id', userId);
+
+  if (error) throw error;
+}
+
+export async function deleteSubtask(userId: string, subtaskId: string) {
+  const supabase = getClient();
+  const { error } = await supabase
+    .from('subtasks')
+    .delete()
+    .eq('id', subtaskId)
+    .eq('user_id', userId);
+
+  if (error) throw error;
+}
+
 // ========== PROJECTS ==========
 
 export async function getProjects(userId: string) {
@@ -827,6 +883,48 @@ export async function decrementDailyCompletion(userId: string, date: string) {
   }
 
   return true;
+}
+
+// ========== POMODORO SESSIONS ==========
+
+export async function savePomodoroSession(
+  userId: string,
+  taskId: string,
+  taskTitle: string,
+  durationSecs: number,
+) {
+  const supabase = getClient();
+  const { error } = await supabase.from('pomodoro_sessions').insert({
+    id: `p${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    user_id: userId,
+    task_id: taskId,
+    task_title: taskTitle,
+    duration_secs: durationSecs,
+  });
+  if (error) throw error;
+}
+
+export async function getTaskPomodorosToday(userId: string, taskId: string): Promise<number> {
+  const supabase = getClient();
+  const today = new Date().toISOString().slice(0, 10);
+  const { count } = await supabase
+    .from('pomodoro_sessions')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .eq('task_id', taskId)
+    .gte('completed_at', `${today}T00:00:00.000Z`);
+  return count ?? 0;
+}
+
+export async function getDailyPomodoroCount(userId: string): Promise<number> {
+  const supabase = getClient();
+  const today = new Date().toISOString().slice(0, 10);
+  const { count } = await supabase
+    .from('pomodoro_sessions')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .gte('completed_at', `${today}T00:00:00.000Z`);
+  return count ?? 0;
 }
 
 // ========== HELPER FUNCTIONS ==========
