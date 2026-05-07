@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { upsertGoogleCalendarEvent } from '@/lib/supabase/db';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 async function refreshAccessToken(refreshToken: string): Promise<{ access_token: string; expires_in: number } | null> {
   const res = await fetch('https://oauth2.googleapis.com/token', {
@@ -15,6 +15,28 @@ async function refreshAccessToken(refreshToken: string): Promise<{ access_token:
   });
   if (!res.ok) return null;
   return res.json();
+}
+
+async function upsertEvent(supabase: SupabaseClient, userId: string, event: {
+  googleEventId: string; title: string;
+  day: number; month: number; year: number;
+  time: string; endTime: string; note: string;
+}) {
+  const { error } = await supabase.from('calendar_events').upsert({
+    user_id:         userId,
+    google_event_id: event.googleEventId,
+    title:           event.title,
+    day:             event.day,
+    month:           event.month,
+    year:            event.year,
+    time:            event.time,
+    end_time:        event.endTime,
+    color:           '#5b8fbf',
+    note:            event.note,
+    source:          'google',
+    updated_at:      new Date().toISOString(),
+  }, { onConflict: 'user_id,google_event_id', ignoreDuplicates: false });
+  if (error) throw error;
 }
 
 function parseGoogleEvent(ev: any): {
@@ -108,7 +130,7 @@ export async function POST(request: Request) {
   for (const item of items) {
     const parsed = parseGoogleEvent(item);
     if (!parsed) continue;
-    await upsertGoogleCalendarEvent(user.id, parsed);
+    await upsertEvent(supabase, user.id, parsed);
     synced++;
   }
 
