@@ -25,6 +25,21 @@ const LANDING_CSS = `
 .ld-strike::after{content:'';position:absolute;left:-4px;right:-4px;top:55%;height:8px;background:var(--accent);border-radius:4px;opacity:0.72;transform:rotate(-2deg);animation:ld-strike 1s 0.7s cubic-bezier(0.2,0.9,0.3,1.2) backwards;transform-origin:left center}
 .ld-cursor{display:inline-block;width:2px;height:1em;background:var(--accent);vertical-align:text-bottom;margin-left:1px;animation:ld-blink 1s steps(2) infinite}
 .ld-feat:hover{transform:translateY(-4px);box-shadow:0 20px 40px -20px rgba(40,30,20,0.14)}
+@media(max-width:768px){
+  .ld-nav-inner{grid-template-columns:1fr auto!important;padding:12px 20px!important;}
+  .ld-nav-links{display:none!important;}
+  .ld-hero{grid-template-columns:1fr!important;padding:80px 20px 40px!important;min-height:auto!important;gap:0!important;}
+  .ld-hero-demo{display:none!important;}
+  .ld-feat-content{padding:36px 16px 44px!important;}
+  .ld-feat-grid>div{grid-column:1/-1!important;}
+  .ld-feat-wide{flex-direction:column!important;gap:16px!important;}
+  .ld-feat-wide-preview{grid-template-columns:1fr!important;}
+  .ld-about{padding:56px 20px 60px!important;}
+  .ld-testimonials-section{padding:44px 20px 52px!important;}
+  .ld-testimonials-grid{grid-template-columns:1fr!important;}
+  .ld-cta-section{padding:44px 20px 52px!important;}
+  .ld-footer{padding:20px!important;flex-direction:column!important;gap:8px!important;text-align:center!important;}
+}
 `;
 
 
@@ -194,7 +209,7 @@ function Nav({ onSignIn }: { onSignIn: (tab: 'login' | 'signup') => void }) {
       transition: 'border-color 0.2s',
     }}>
       {/* inner container — matches hero max-width and padding */}
-      <div style={{
+      <div className="ld-nav-inner" style={{
         maxWidth: 1600, margin: '0 auto',
         display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center',
         padding: scrolled ? '10px 5vw' : '18px 5vw',
@@ -207,7 +222,7 @@ function Nav({ onSignIn }: { onSignIn: (tab: 'login' | 'signup') => void }) {
         </a>
 
         {/* center — links */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+        <div className="ld-nav-links" style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           {[['Features', 'features'], ['About', 'about'], ['Sign in', '']].map(([label, id]) => (
             <button key={label} onClick={() => id ? scrollTo(id) : onSignIn('login')}
               style={{ padding: '7px 14px', borderRadius: 8, border: 'none', background: 'none', fontSize: 14, fontWeight: 500, color: 'var(--ink-soft)', cursor: 'pointer', fontFamily: 'inherit', transition: 'background 0.12s, color 0.12s' }}
@@ -243,7 +258,7 @@ function Hero({ onCta }: { onCta: (tab: 'login' | 'signup') => void }) {
   }, []);
 
   return (
-    <section ref={ref} style={{
+    <section ref={ref} className="ld-hero" style={{
       minHeight: '100vh',
       padding: '0 4vw 0 5vw',
       display: 'grid',
@@ -290,7 +305,7 @@ function Hero({ onCta }: { onCta: (tab: 'login' | 'signup') => void }) {
       </div>
 
       {/* ── Right: animated demo ── */}
-      <div data-in style={{ position: 'relative' }}>
+      <div data-in className="ld-hero-demo" style={{ position: 'relative' }}>
         <div style={{ position: 'absolute', inset: '40px 60px -20px', background: 'radial-gradient(ellipse at 55% 50%, rgba(193,98,63,0.14), transparent 65%)', filter: 'blur(40px)', pointerEvents: 'none', zIndex: 0 }} />
         <div style={{ position: 'relative', zIndex: 1 }}>
           <AnimatedDemo />
@@ -336,7 +351,7 @@ function Features() {
 
   return (
     <section ref={ref} id="features" style={{ background: '#f7ede8' }}>
-      <div style={{ padding: '72px 48px', maxWidth: 1280, margin: '0 auto' }}>
+      <div className="ld-feat-content" style={{ padding: '72px 48px', maxWidth: 1280, margin: '0 auto' }}>
       <div style={{ textAlign: 'center', marginBottom: 36 }}>
         <div style={{ marginBottom: 10, fontFamily: 'var(--font-mono)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.15em', color: 'var(--accent)' }}>— Features</div>
         <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(28px,4vw,44px)', lineHeight: 1.05, letterSpacing: '-0.02em', margin: '0 0 12px', fontWeight: 400 }}>
@@ -345,7 +360,7 @@ function Features() {
         <p style={{ fontSize: 15, color: 'var(--ink-soft)', margin: 0 }}>Six pages. One purpose. Everything earns its place.</p>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: 12 }}>
+      <div className="ld-feat-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: 12 }}>
 
         {/* Today's tasks — large */}
         <div className="ld-feat" style={{ ...card(), gridColumn: 'span 5', minHeight: 260 }}>
@@ -460,7 +475,7 @@ function Features() {
         </div>
 
         {/* Morning Ritual — wide */}
-        <div className="ld-feat" style={{ ...card({ flexDirection: 'row', alignItems: 'center', gap: 32 }), gridColumn: 'span 12', minHeight: 150, background: 'linear-gradient(135deg, #fdf3ee 0%, #f5e8de 100%)' }}>
+        <div className="ld-feat ld-feat-wide" style={{ ...card({ flexDirection: 'row', alignItems: 'center', gap: 32 }), gridColumn: 'span 12', minHeight: 150, background: 'linear-gradient(135deg, #fdf3ee 0%, #f5e8de 100%)' }}>
           <div style={{ flex: 1 }}>
             <div style={{ width: 34, height: 34, borderRadius: 10, background: 'rgba(193,98,63,0.15)', display: 'grid', placeItems: 'center', marginBottom: 12 }}>
               <span style={{ fontSize: 18 }}>☕</span>
@@ -471,7 +486,7 @@ function Features() {
             </p>
           </div>
           {/* Preview: email + whatsapp mockups */}
-          <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, alignSelf: 'stretch', padding: '4px 0' }}>
+          <div className="ld-feat-wide-preview" style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, alignSelf: 'stretch', padding: '4px 0' }}>
             {/* Email preview */}
             <div style={{ background: '#fff', borderRadius: 10, padding: '12px 13px', border: '1px solid var(--line)', display: 'flex', flexDirection: 'column', gap: 7 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
@@ -508,7 +523,7 @@ function Features() {
         </div>
 
         {/* Customization — wide */}
-        <div className="ld-feat" style={{ ...card({ flexDirection: 'row', alignItems: 'center', gap: 32 }), gridColumn: 'span 12', minHeight: 150 }}>
+        <div className="ld-feat ld-feat-wide" style={{ ...card({ flexDirection: 'row', alignItems: 'center', gap: 32 }), gridColumn: 'span 12', minHeight: 150 }}>
           <div style={{ flex: 1 }}>
             <div style={{ width: 34, height: 34, borderRadius: 10, background: 'var(--accent-soft)', display: 'grid', placeItems: 'center', marginBottom: 12 }}>
               <Icon name="settings" size={16} style={{ color: 'var(--accent)' }} />
@@ -516,7 +531,7 @@ function Features() {
             <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 21, letterSpacing: '-0.015em', margin: '0 0 7px', fontWeight: 400 }}>Built for <em style={{ color: 'var(--accent)', fontStyle: 'italic' }}>your</em> rhythm.</h3>
             <p style={{ color: 'var(--ink-soft)', fontSize: 13, maxWidth: 400, lineHeight: 1.6, margin: 0 }}>Six accent colors, three densities, three dashboard layouts, light/dark themes, background patterns. No two slowdesks look alike.</p>
           </div>
-          <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, alignSelf: 'stretch', padding: '8px 0' }}>
+          <div className="ld-feat-wide-preview" style={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, alignSelf: 'stretch', padding: '8px 0' }}>
             {[
               { bg: '#f0e6d8', accent: '#c1623f', label: 'Light · Terracotta', dark: false },
               { bg: '#1c1814', accent: '#8fb894', label: 'Dark · Sage',        dark: true  },
@@ -558,7 +573,7 @@ function About() {
   }, []);
 
   return (
-    <section ref={ref} id="about" style={{
+    <section ref={ref} id="about" className="ld-about" style={{
       padding: '96px 48px 100px',
       textAlign: 'center',
       background: 'radial-gradient(ellipse at 20% 60%, #e8cfc4 0%, #edddd5 25%, #ede6dd 55%, var(--bg) 80%)',
@@ -622,7 +637,7 @@ function CtaSection({ onCta }: { onCta: (tab: 'login' | 'signup') => void }) {
   }, []);
 
   return (
-    <section ref={ref} style={{ padding: '88px 48px 96px', textAlign: 'center', background: '#f5ebe3', borderTop: '1px solid var(--line)' }}>
+    <section ref={ref} className="ld-cta-section" style={{ padding: '88px 48px 96px', textAlign: 'center', background: '#f5ebe3', borderTop: '1px solid var(--line)' }}>
       <div style={{ maxWidth: 560, margin: '0 auto' }}>
         <div data-c style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '5px 14px', borderRadius: 999, background: 'var(--accent-soft)', border: '1px solid rgba(193,98,63,0.2)', fontSize: 12, color: 'var(--accent)', marginBottom: 22, fontFamily: 'var(--font-sans)' }}>
           <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', display: 'inline-block' }} />
@@ -666,11 +681,11 @@ function Testimonials() {
     { quote: '"Finally, a productivity app that doesn\'t give me anxiety."',          role: 'Creative Director', bg: '#e8d8ec', accent: '#8b5c75' },
   ];
   return (
-    <section style={{ padding: '80px 48px 88px', background: 'var(--bg)', borderTop: '1px solid var(--line)' }}>
+    <section className="ld-testimonials-section" style={{ padding: '80px 48px 88px', background: 'var(--bg)', borderTop: '1px solid var(--line)' }}>
       <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(28px,3.5vw,42px)', fontWeight: 400, letterSpacing: '-0.02em', textAlign: 'center', margin: '0 0 52px', color: 'var(--ink)' }}>
         Loved by slow workers
       </h2>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 20, maxWidth: 1100, margin: '0 auto' }}>
+      <div className="ld-testimonials-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 20, maxWidth: 1100, margin: '0 auto' }}>
         {CARDS.map((c, i) => (
           <div key={i} style={{ background: c.bg, borderRadius: 18, padding: '32px 28px 28px', display: 'flex', flexDirection: 'column', gap: 20 }}>
             <span style={{ fontFamily: 'var(--font-display)', fontSize: 22, color: c.accent, lineHeight: 1, fontStyle: 'italic' }}>"</span>
@@ -686,7 +701,7 @@ function Testimonials() {
 /* ── Footer ──────────────────────────────────────────────── */
 function Footer() {
   return (
-    <footer style={{ padding: '24px 48px', display: 'flex', alignItems: 'center', background: '#d8d0c8' }}>
+    <footer className="ld-footer" style={{ padding: '24px 48px', display: 'flex', alignItems: 'center', background: '#d8d0c8' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <span style={{ fontFamily: 'var(--font-display)', fontSize: 16, letterSpacing: '-0.02em', color: 'var(--ink)' }}>
           slow<em style={{ color: 'var(--accent)' }}>desk</em>
