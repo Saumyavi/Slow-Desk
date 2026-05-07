@@ -98,7 +98,7 @@ function NoteItem({ note, active, preview, onClick, onDelete }: {
 /* ── Page ────────────────────────────────────────────────── */
 export default function NotesPage() {
   const supabase = createClient();
-  const { tasks, setTasks, projects, fireConfetti, user } = useApp();
+  const { tasks, setTasks, projects, setProjects, fireConfetti, user } = useApp();
   const email = user?.email ?? 'guest';
   const gratKey = `sd:${email}:gratitude`;
 
@@ -362,11 +362,19 @@ export default function NotesPage() {
     setCreatingProject(true);
     try {
       const name = projectName.trim();
-      await db.createProject(userId, {
+      const created = await db.createProject(userId, {
         name, short: name.slice(0, 2).toUpperCase(),
         tone: 'terra', due: 'Ongoing',
         desc: `Created from note: ${activeNote?.title || ''}`,
       });
+      setProjects(prev => [{
+        id: created.id,
+        name: created.name,
+        short: created.short,
+        tone: created.tone,
+        due: created.due || 'Ongoing',
+        desc: created.description || '',
+      }, ...prev]);
       for (const title of extractedTasks) {
         await onAddTask({ title, done: false, priority: 'medium', project: name, tone: 'terra', attach: 0, due: 'someday', time: '' });
       }

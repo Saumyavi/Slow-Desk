@@ -226,7 +226,7 @@ export default function PomodoroTimer({ task, onClose }: Props) {
                 strokeLinecap="round"
                 strokeDasharray={circ}
                 strokeDashoffset={offset}
-                style={{ transition: running ? 'stroke-dashoffset 1s linear' : 'none', transitionProperty: 'stroke-dashoffset, stroke', transitionDuration: running ? '1s, 0.4s' : '0s, 0.4s' }}
+                style={{ transitionProperty: 'stroke-dashoffset, stroke', transitionDuration: running ? '1s, 0.4s' : '0s, 0.4s', transitionTimingFunction: 'linear, ease' }}
               />
             </svg>
 
