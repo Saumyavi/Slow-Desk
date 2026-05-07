@@ -3,7 +3,8 @@ export type IconName =
   | 'search' | 'plus' | 'bell' | 'sun' | 'moon' | 'check' | 'clock'
   | 'flame' | 'sparkle' | 'chevron' | 'chevronD' | 'sort' | 'more'
   | 'grip' | 'paperclip' | 'settings' | 'x' | 'camera'
-  | 'trash' | 'edit' | 'user' | 'logout' | 'lock' | 'mail';
+  | 'trash' | 'edit' | 'user' | 'logout' | 'lock' | 'mail'
+  | 'focus' | 'repeat';
 
 const PATHS: Record<IconName, React.ReactNode> = {
   dashboard: <><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></>,
@@ -36,6 +37,8 @@ const PATHS: Record<IconName, React.ReactNode> = {
   logout:    <><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></>,
   lock:      <><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></>,
   mail:      <><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></>,
+  focus:     <><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></>,
+  repeat:    <><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></>,
 };
 
 interface IconProps {

@@ -756,6 +756,48 @@ export async function decrementDailyCompletion(userId: string, date: string) {
   return true;
 }
 
+// ========== POMODORO SESSIONS ==========
+
+export async function savePomodoroSession(
+  userId: string,
+  taskId: string,
+  taskTitle: string,
+  durationSecs: number,
+) {
+  const supabase = getClient();
+  const { error } = await supabase.from('pomodoro_sessions').insert({
+    id: `p${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    user_id: userId,
+    task_id: taskId,
+    task_title: taskTitle,
+    duration_secs: durationSecs,
+  });
+  if (error) throw error;
+}
+
+export async function getTaskPomodorosToday(userId: string, taskId: string): Promise<number> {
+  const supabase = getClient();
+  const today = new Date().toISOString().slice(0, 10);
+  const { count } = await supabase
+    .from('pomodoro_sessions')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .eq('task_id', taskId)
+    .gte('completed_at', `${today}T00:00:00.000Z`);
+  return count ?? 0;
+}
+
+export async function getDailyPomodoroCount(userId: string): Promise<number> {
+  const supabase = getClient();
+  const today = new Date().toISOString().slice(0, 10);
+  const { count } = await supabase
+    .from('pomodoro_sessions')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .gte('completed_at', `${today}T00:00:00.000Z`);
+  return count ?? 0;
+}
+
 // ========== HELPER FUNCTIONS ==========
 
 function relativeTime(iso: string): string {
