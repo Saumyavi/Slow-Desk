@@ -283,6 +283,73 @@ export default function NotesPage() {
     }
   }, [userId, setTasks]);
 
+  /* ── AI state ───────────────────────────────────────────── */
+  type AiAction = 'summarize' | 'extract' | 'ask';
+  const [showAI, setShowAI] = useState(false);
+  const [aiAction, setAiAction] = useState<AiAction | null>(null);
+  const [aiQuestion, setAiQuestion] = useState('');
+  const [aiResponse, setAiResponse] = useState('');
+  const [aiLoading, setAiLoading] = useState(false);
+  const [extractedTasks, setExtractedTasks] = useState<string[]>([]);
+  const [addedTasks, setAddedTasks] = useState<Set<string>>(new Set());
+
+  const runAI = async (action: AiAction, question?: string) => {
+    setAiAction(action);
+    setAiResponse('');
+    setExtractedTasks([]);
+    setAddedTasks(new Set());
+    setAiLoading(true);
+
+    try {
+      const res = await fetch('/api/notes/ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: content[activeId] || '',
+          title: activeNote?.title || '',
+          action,
+          question,
+        }),
+      });
+
+      if (!res.ok || !res.body) {
+        const err = await res.json().catch(() => ({ error: 'Request failed' }));
+        setAiResponse(`Error: ${err.error || 'Request failed'}`);
+        setAiLoading(false);
+        return;
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let full = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        full += decoder.decode(value, { stream: true });
+        setAiResponse(full);
+      }
+
+      if (action === 'extract') {
+        const tasks = full
+          .split('\n')
+          .filter(l => l.trim().startsWith('- '))
+          .map(l => l.replace(/^-\s+/, '').trim())
+          .filter(Boolean);
+        setExtractedTasks(tasks);
+      }
+    } catch {
+      setAiResponse('Error: Could not reach AI service.');
+    }
+
+    setAiLoading(false);
+  };
+
+  const handleAddExtractedTask = async (taskTitle: string) => {
+    await onAddTask({ title: taskTitle, done: false, priority: 'medium', project: '', tone: 'terra', attach: 0, due: 'someday', time: '' });
+    setAddedTasks(prev => new Set(prev).add(taskTitle));
+  };
+
   const wordCount = (content[activeId] || '').trim().split(/\s+/).filter(Boolean).length;
 
   const setGrat = (key: keyof GratitudeEntry, val: string) =>
@@ -446,6 +513,23 @@ export default function NotesPage() {
                   <Icon name="check" size={11} /> Saved
                 </span>
               )}
+              <button
+                onClick={() => { setShowAI(v => !v); if (!showAI) { setAiAction(null); setAiResponse(''); setExtractedTasks([]); } }}
+                style={{
+                  padding: '5px 12px', borderRadius: 7,
+                  border: `1.5px solid ${showAI ? 'var(--accent)' : 'var(--line)'}`,
+                  background: showAI ? 'var(--accent-soft)' : 'var(--bg-sunk)',
+                  fontSize: 12, fontWeight: 600,
+                  color: showAI ? 'var(--accent)' : 'var(--ink-soft)',
+                  cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                  transition: 'all 0.15s', display: 'flex', alignItems: 'center', gap: 5,
+                }}
+              >
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="m12 3 1.9 5.3L19 10l-5.1 1.7L12 17l-1.9-5.3L5 10l5.1-1.7z"/>
+                </svg>
+                AI
+              </button>
               <button onClick={saveNote} style={{
                 padding: '5px 16px', borderRadius: 7, border: '1px solid var(--line)',
                 background: 'var(--bg-sunk)', fontSize: 12, fontWeight: 500,
@@ -456,6 +540,160 @@ export default function NotesPage() {
                 onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--line)'; e.currentTarget.style.color = 'var(--ink-soft)'; }}
               >Save</button>
             </div>
+
+            {/* ── AI panel ────────────────────────────────── */}
+            {showAI && (
+              <div style={{
+                marginTop: 20, border: '1px solid var(--line)',
+                borderRadius: 14, background: 'var(--bg-elev)', overflow: 'hidden',
+              }}>
+                {/* header */}
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  padding: '10px 14px', borderBottom: '1px solid var(--line)',
+                }}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style={{ color: 'var(--accent)', flexShrink: 0 }}>
+                    <path d="m12 3 1.9 5.3L19 10l-5.1 1.7L12 17l-1.9-5.3L5 10l5.1-1.7z"/>
+                  </svg>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink)', flex: 1 }}>AI Assistant</span>
+                  <button onClick={() => setShowAI(false)} style={{
+                    width: 22, height: 22, borderRadius: 6, border: 'none',
+                    background: 'transparent', cursor: 'pointer',
+                    display: 'grid', placeItems: 'center', color: 'var(--ink-faint)',
+                  }}>
+                    <Icon name="x" size={12} />
+                  </button>
+                </div>
+
+                {/* action chips */}
+                <div style={{ display: 'flex', gap: 6, padding: '10px 14px', borderBottom: '1px solid var(--line)', flexWrap: 'wrap' }}>
+                  {([
+                    { id: 'summarize', label: 'Summarize' },
+                    { id: 'extract',   label: 'Extract tasks' },
+                    { id: 'ask',       label: 'Ask' },
+                  ] as { id: AiAction; label: string }[]).map(({ id, label }) => (
+                    <button
+                      key={id}
+                      onClick={() => id === 'ask' ? setAiAction('ask') : runAI(id)}
+                      disabled={aiLoading}
+                      style={{
+                        padding: '5px 14px', borderRadius: 20,
+                        border: `1.5px solid ${aiAction === id ? 'var(--accent)' : 'var(--line)'}`,
+                        background: aiAction === id ? 'var(--accent-soft)' : 'transparent',
+                        color: aiAction === id ? 'var(--accent)' : 'var(--ink-soft)',
+                        fontSize: 12, fontWeight: 500,
+                        cursor: aiLoading ? 'default' : 'pointer',
+                        fontFamily: 'var(--font-sans)', transition: 'all 0.13s',
+                        opacity: aiLoading && aiAction !== id ? 0.5 : 1,
+                      }}
+                    >{label}</button>
+                  ))}
+                </div>
+
+                {/* ask input */}
+                {aiAction === 'ask' && (
+                  <div style={{
+                    display: 'flex', gap: 8, padding: '10px 14px',
+                    borderBottom: '1px solid var(--line)',
+                  }}>
+                    <input
+                      autoFocus
+                      value={aiQuestion}
+                      onChange={e => setAiQuestion(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && aiQuestion.trim() && runAI('ask', aiQuestion)}
+                      placeholder="Ask anything about this note…"
+                      style={{
+                        flex: 1, padding: '6px 10px', borderRadius: 8,
+                        border: '1.5px solid var(--line)', background: 'var(--bg-sunk)',
+                        fontSize: 13, color: 'var(--ink)', outline: 'none',
+                        fontFamily: 'var(--font-sans)',
+                      }}
+                    />
+                    <button
+                      onClick={() => aiQuestion.trim() && runAI('ask', aiQuestion)}
+                      disabled={!aiQuestion.trim() || aiLoading}
+                      style={{
+                        padding: '6px 14px', borderRadius: 8,
+                        border: 'none', background: 'var(--accent)', color: '#fff',
+                        fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                        fontFamily: 'var(--font-sans)',
+                        opacity: !aiQuestion.trim() || aiLoading ? 0.5 : 1,
+                        transition: 'opacity 0.13s',
+                      }}
+                    >Ask</button>
+                  </div>
+                )}
+
+                {/* response area */}
+                {(aiLoading || aiResponse) && (
+                  <div style={{ padding: '14px 16px', maxHeight: 300, overflowY: 'auto' }}>
+                    {aiLoading && !aiResponse && (
+                      <div style={{ display: 'flex', gap: 5, alignItems: 'center', padding: '4px 0' }}>
+                        {[0, 0.18, 0.36].map((delay, i) => (
+                          <div key={i} style={{
+                            width: 5, height: 5, borderRadius: '50%',
+                            background: 'var(--accent)', opacity: 0.7,
+                            animation: `aiPulse 1.1s ease-in-out ${delay}s infinite`,
+                          }} />
+                        ))}
+                      </div>
+                    )}
+                    {aiResponse && aiAction !== 'extract' && (
+                      <p style={{
+                        margin: 0, fontSize: 13, lineHeight: 1.75,
+                        color: 'var(--ink)', whiteSpace: 'pre-wrap',
+                        fontFamily: 'var(--font-sans)',
+                      }}>
+                        {aiResponse}
+                        {aiLoading && <span style={{ opacity: 0.35, fontWeight: 300 }}>▊</span>}
+                      </p>
+                    )}
+
+                    {/* extracted tasks list */}
+                    {aiAction === 'extract' && extractedTasks.length > 0 && !aiLoading && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {extractedTasks.map((task, i) => (
+                          <div key={i} style={{
+                            display: 'flex', alignItems: 'center', gap: 10,
+                            padding: '7px 10px', borderRadius: 8,
+                            background: 'var(--bg-sunk)', border: '1px solid var(--line)',
+                          }}>
+                            <span style={{ flex: 1, fontSize: 13, color: 'var(--ink)', lineHeight: 1.4 }}>{task}</span>
+                            {addedTasks.has(task) ? (
+                              <span style={{
+                                fontSize: 11, color: '#7a9e7e', display: 'flex',
+                                alignItems: 'center', gap: 3, flexShrink: 0,
+                              }}>
+                                <Icon name="check" size={11} /> Added
+                              </span>
+                            ) : (
+                              <button
+                                onClick={() => handleAddExtractedTask(task)}
+                                style={{
+                                  padding: '3px 10px', borderRadius: 6, flexShrink: 0,
+                                  border: '1px solid var(--accent)', background: 'transparent',
+                                  color: 'var(--accent)', fontSize: 11, fontWeight: 600,
+                                  cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                                  transition: 'all 0.12s',
+                                }}
+                                onMouseEnter={e => { e.currentTarget.style.background = 'var(--accent-soft)'; }}
+                                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                              >+ Add</button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {aiAction === 'extract' && aiLoading && (
+                      <p style={{ margin: 0, fontSize: 13, lineHeight: 1.75, color: 'var(--ink)', whiteSpace: 'pre-wrap', fontFamily: 'var(--font-sans)', opacity: 0.6 }}>
+                        {aiResponse}
+                        <span style={{ opacity: 0.35 }}>▊</span>
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* ── gratitude section (unchanged) ── */}
             <div style={{
