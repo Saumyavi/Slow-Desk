@@ -3,6 +3,7 @@ import { useState, useRef, useEffect } from 'react';
 import { gsap } from 'gsap';
 import { createClient } from '@/lib/supabase/client';
 import { useApp, Accent } from '@/lib/store';
+import * as db from '@/lib/supabase/db';
 import Topbar from '@/components/Topbar';
 import Icon from '@/components/Icon';
 
@@ -114,6 +115,7 @@ export default function ProfilePage() {
     bgPattern, setBgPattern,
     dashVariant, setDashVariant,
     fireConfetti,
+    tasks, projects, calendarEvents,
   } = useApp();
 
   const [name,     setName]     = useState(user?.name     ?? '');
@@ -137,8 +139,92 @@ export default function ProfilePage() {
   const [ritualSaved,         setRitualSaved]         = useState(false);
   const [hoveredAccent,       setHoveredAccent]       = useState<string | null>(null);
 
+  const [exporting, setExporting] = useState<string | null>(null);
+
   const pageRef    = useRef<HTMLDivElement>(null);
   const pickerRef  = useRef<HTMLDivElement>(null);
+
+  const triggerDownload = (blob: Blob, filename: string) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const todayStamp = () => new Date().toISOString().slice(0, 10);
+
+  const exportJSON = async () => {
+    setExporting('json');
+    try {
+      const supabase = createClient();
+      const { data: { user: u } } = await supabase.auth.getUser();
+      let notes: object[] = [];
+      if (u) {
+        const list = await db.getNotes(u.id);
+        notes = await Promise.all(list.map(n => db.getNote(u.id, n.id).then(f => ({ ...n, content: f?.content ?? '' }))));
+      }
+      const payload = {
+        exported_at: new Date().toISOString(),
+        tasks,
+        projects,
+        calendar_events: calendarEvents,
+        notes,
+      };
+      triggerDownload(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }), `slowdesk-${todayStamp()}.json`);
+    } catch (e) { console.error(e); }
+    setExporting(null);
+  };
+
+  const exportCSV = () => {
+    setExporting('csv');
+    const esc = (v: string) => `"${String(v).replace(/"/g, '""')}"`;
+    const headers = ['Title', 'Done', 'Project', 'Priority', 'Due', 'Time'];
+    const rows = tasks.map(t => [esc(t.title), t.done ? 'Yes' : 'No', esc(t.project), t.priority, t.due, t.time ?? ''].join(','));
+    triggerDownload(new Blob([[headers.join(','), ...rows].join('\n')], { type: 'text/csv' }), `slowdesk-tasks-${todayStamp()}.csv`);
+    setExporting(null);
+  };
+
+  const exportMarkdown = async () => {
+    setExporting('md');
+    try {
+      const supabase = createClient();
+      const { data: { user: u } } = await supabase.auth.getUser();
+
+      const date = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+      let md = `# SlowDesk Export\n_${date}_\n\n---\n\n`;
+
+      // Tasks grouped by project
+      md += `## Tasks\n\n`;
+      const byProject: Record<string, typeof tasks> = {};
+      for (const t of tasks) { (byProject[t.project || 'Inbox'] ??= []).push(t); }
+      for (const [proj, pts] of Object.entries(byProject)) {
+        md += `### ${proj}\n\n`;
+        for (const t of pts) md += `- [${t.done ? 'x' : ' '}] ${t.title}${t.priority === 'high' ? ' ⚡' : ''} · _${t.due}_\n`;
+        md += '\n';
+      }
+
+      // Projects
+      if (projects.length) {
+        md += `## Projects\n\n`;
+        for (const p of projects) md += `### ${p.name}\n${p.desc ? p.desc + '\n' : ''}_Due: ${p.due}_\n\n`;
+      }
+
+      // Notes with full content
+      if (u) {
+        const list = await db.getNotes(u.id);
+        if (list.length) {
+          md += `## Notes\n\n`;
+          for (const n of list) {
+            const full = await db.getNote(u.id, n.id);
+            md += `### ${n.title}\n\n${full?.content ?? ''}\n\n---\n\n`;
+          }
+        }
+      }
+
+      triggerDownload(new Blob([md], { type: 'text/markdown' }), `slowdesk-${todayStamp()}.md`);
+    } catch (e) { console.error(e); }
+    setExporting(null);
+  };
 
   useEffect(() => {
     if (!pageRef.current) return;
@@ -771,6 +857,85 @@ export default function ProfilePage() {
               {ritualSaved ? 'Ritual set' : notifSaving ? 'Saving…' : 'Save preferences'}
             </button>
             {ritualSaved && <span style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 16, color: 'var(--accent)' }}>see you at sunrise ✦</span>}
+          </div>
+        </div>
+
+        {/* ── 05 — Data & Export ───────────────────────────── */}
+        <div style={{ borderRadius: 18, border: '1px solid var(--line)', background: 'var(--bg-elev)', padding: 28 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: 'var(--ink-faint)', textTransform: 'uppercase', letterSpacing: '0.14em' }}>05</span>
+            <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: 'var(--ink)', fontFamily: 'var(--font-sans)' }}>Data &amp; Export</h2>
+          </div>
+          <p style={{ margin: '0 0 22px', fontSize: 13, color: 'var(--ink-soft)', lineHeight: 1.6, fontFamily: 'var(--font-sans)' }}>
+            Your data belongs to you — no lock-in. Download everything as a backup or move it to another tool.
+          </p>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {/* JSON */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', borderRadius: 12, border: '1px solid var(--line)', background: 'var(--bg)' }}>
+              <div style={{ width: 36, height: 36, borderRadius: 9, background: 'rgba(91,143,191,0.1)', border: '1px solid rgba(91,143,191,0.25)', display: 'grid', placeItems: 'center', flexShrink: 0 }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5b8fbf" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+                </svg>
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)', fontFamily: 'var(--font-sans)' }}>JSON</div>
+                <div style={{ fontSize: 11, color: 'var(--ink-faint)', fontFamily: 'var(--font-mono)' }}>tasks · projects · notes · calendar — full structure</div>
+              </div>
+              <button
+                onClick={exportJSON}
+                disabled={exporting !== null}
+                style={{ padding: '7px 16px', borderRadius: 8, border: '1px solid rgba(91,143,191,0.4)', background: 'rgba(91,143,191,0.08)', color: '#5b8fbf', fontSize: 12, fontWeight: 600, cursor: exporting ? 'default' : 'pointer', fontFamily: 'var(--font-sans)', opacity: exporting ? 0.5 : 1, transition: 'all 0.13s', whiteSpace: 'nowrap' }}
+                onMouseEnter={e => { if (!exporting) e.currentTarget.style.background = 'rgba(91,143,191,0.18)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(91,143,191,0.08)'; }}
+              >
+                {exporting === 'json' ? 'Exporting…' : '↓ Export'}
+              </button>
+            </div>
+
+            {/* CSV */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', borderRadius: 12, border: '1px solid var(--line)', background: 'var(--bg)' }}>
+              <div style={{ width: 36, height: 36, borderRadius: 9, background: 'rgba(122,158,126,0.1)', border: '1px solid rgba(122,158,126,0.25)', display: 'grid', placeItems: 'center', flexShrink: 0 }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7a9e7e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/>
+                </svg>
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)', fontFamily: 'var(--font-sans)' }}>CSV</div>
+                <div style={{ fontSize: 11, color: 'var(--ink-faint)', fontFamily: 'var(--font-mono)' }}>tasks — spreadsheet-ready</div>
+              </div>
+              <button
+                onClick={exportCSV}
+                disabled={exporting !== null}
+                style={{ padding: '7px 16px', borderRadius: 8, border: '1px solid rgba(122,158,126,0.4)', background: 'rgba(122,158,126,0.08)', color: '#7a9e7e', fontSize: 12, fontWeight: 600, cursor: exporting ? 'default' : 'pointer', fontFamily: 'var(--font-sans)', opacity: exporting ? 0.5 : 1, transition: 'all 0.13s', whiteSpace: 'nowrap' }}
+                onMouseEnter={e => { if (!exporting) e.currentTarget.style.background = 'rgba(122,158,126,0.18)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(122,158,126,0.08)'; }}
+              >
+                {exporting === 'csv' ? 'Exporting…' : '↓ Export'}
+              </button>
+            </div>
+
+            {/* Markdown */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', borderRadius: 12, border: '1px solid var(--line)', background: 'var(--bg)' }}>
+              <div style={{ width: 36, height: 36, borderRadius: 9, background: 'rgba(193,98,63,0.1)', border: '1px solid rgba(193,98,63,0.25)', display: 'grid', placeItems: 'center', flexShrink: 0 }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#c1623f" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 6h16M4 12h10M4 18h7"/>
+                </svg>
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)', fontFamily: 'var(--font-sans)' }}>Markdown</div>
+                <div style={{ fontSize: 11, color: 'var(--ink-faint)', fontFamily: 'var(--font-mono)' }}>tasks · projects · notes — human-readable</div>
+              </div>
+              <button
+                onClick={exportMarkdown}
+                disabled={exporting !== null}
+                style={{ padding: '7px 16px', borderRadius: 8, border: '1px solid rgba(193,98,63,0.4)', background: 'rgba(193,98,63,0.08)', color: '#c1623f', fontSize: 12, fontWeight: 600, cursor: exporting ? 'default' : 'pointer', fontFamily: 'var(--font-sans)', opacity: exporting ? 0.5 : 1, transition: 'all 0.13s', whiteSpace: 'nowrap' }}
+                onMouseEnter={e => { if (!exporting) e.currentTarget.style.background = 'rgba(193,98,63,0.18)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(193,98,63,0.08)'; }}
+              >
+                {exporting === 'md' ? 'Exporting…' : '↓ Export'}
+              </button>
+            </div>
           </div>
         </div>
 

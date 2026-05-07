@@ -385,10 +385,13 @@ export default function HabitsPage() {
   const supabase = createClient();
 
 
-  const [userId, setUserId] = useState<string | null>(null);
-  const [habits, setHabits] = useState<HabitData[]>([]);
-  const [modal, setModal] = useState<{ habit?: HabitData } | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [userId,   setUserId]   = useState<string | null>(null);
+  const [habits,   setHabits]   = useState<HabitData[]>([]);
+  const [modal,    setModal]    = useState<{ habit?: HabitData } | null>(null);
+  const [loading,  setLoading]  = useState(true);
+  const [insights,        setInsights]        = useState<string[] | null>(null);
+  const [insightsLoading, setInsightsLoading] = useState(false);
+  const [insightsExpanded, setInsightsExpanded] = useState(true);
   const headerRef = useRef<HTMLDivElement>(null);
 
   // Load user and habits from Supabase
@@ -474,6 +477,27 @@ export default function HabitsPage() {
     }
   };
 
+  const fetchInsights = async (habitList: HabitData[]) => {
+    if (habitList.length === 0) return;
+    setInsightsLoading(true);
+    setInsights(null);
+    try {
+      const res = await fetch('/api/habits/insights', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          habits: habitList.map(h => ({ name: h.name, emoji: h.emoji, history: h.history })),
+        }),
+      });
+      const data = await res.json();
+      setInsights(data.hasEnoughData ? (data.insights ?? []) : []);
+    } catch {
+      setInsights([]);
+    } finally {
+      setInsightsLoading(false);
+    }
+  };
+
   const doneCount = habits.filter(h => new Set(h.history).has(TODAY)).length;
   const pct = habits.length === 0 ? 0 : Math.round((doneCount / habits.length) * 100);
 
@@ -527,6 +551,127 @@ export default function HabitsPage() {
             <i style={{ display: 'block', height: '100%', width: `${pct}%`, background: 'var(--accent)', borderRadius: 3, transition: 'width 0.45s ease' }} />
           </div>
         </div>
+
+        {/* ── Habit Intelligence ── */}
+        {habits.length > 0 && (
+          <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+            {/* header row */}
+            <div
+              onClick={() => setInsightsExpanded(e => !e)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                padding: '14px 18px', cursor: 'pointer',
+                borderBottom: insightsExpanded ? '1px solid var(--line)' : 'none',
+                transition: 'border 0.2s',
+              }}
+            >
+              <span style={{
+                fontSize: 11, fontFamily: 'var(--font-mono)', letterSpacing: '0.12em',
+                textTransform: 'uppercase', color: 'var(--accent)', fontWeight: 600,
+              }}>✦ Habit insights</span>
+              <div style={{ flex: 1 }} />
+              {insights === null && !insightsLoading && (
+                <button
+                  onClick={e => { e.stopPropagation(); setInsightsExpanded(true); fetchInsights(habits); }}
+                  style={{
+                    padding: '5px 14px', borderRadius: 20, border: 'none',
+                    background: 'var(--accent)', color: '#fff',
+                    fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                    fontFamily: 'var(--font-sans)',
+                  }}
+                >
+                  Analyze
+                </button>
+              )}
+              {insights !== null && !insightsLoading && (
+                <button
+                  onClick={e => { e.stopPropagation(); fetchInsights(habits); }}
+                  style={{
+                    padding: '4px 12px', borderRadius: 20,
+                    border: '1px solid var(--line)', background: 'transparent',
+                    color: 'var(--ink-faint)', fontSize: 11, cursor: 'pointer',
+                    fontFamily: 'var(--font-sans)',
+                  }}
+                >
+                  Refresh
+                </button>
+              )}
+              <svg
+                width="14" height="14" viewBox="0 0 24 24" fill="none"
+                stroke="var(--ink-faint)" strokeWidth="2" strokeLinecap="round"
+                style={{ transform: insightsExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}
+              >
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            </div>
+
+            {insightsExpanded && (
+              <div style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {/* loading */}
+                {insightsLoading && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0' }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" style={{ animation: 'spin 1s linear infinite', flexShrink: 0 }}>
+                      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+                      <circle cx="12" cy="12" r="10" fill="none" stroke="var(--line)" strokeWidth="3"/>
+                      <path d="M12 2a10 10 0 0 1 10 10" fill="none" stroke="var(--accent)" strokeWidth="3" strokeLinecap="round"/>
+                    </svg>
+                    <span style={{ fontSize: 13, color: 'var(--ink-faint)', fontFamily: 'var(--font-sans)' }}>
+                      Analyzing your habit patterns…
+                    </span>
+                  </div>
+                )}
+
+                {/* not enough data */}
+                {!insightsLoading && insights !== null && insights.length === 0 && (
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: 12,
+                    padding: '10px 14px', borderRadius: 10,
+                    background: 'var(--bg-sunk)', border: '1px solid var(--line)',
+                  }}>
+                    <span style={{ fontSize: 20 }}>🌱</span>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--ink)', marginBottom: 2 }}>Keep logging</div>
+                      <div style={{ fontSize: 12, color: 'var(--ink-faint)', lineHeight: 1.5 }}>
+                        Insights unlock after 14 days of habit data. You're building the foundation.
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* not yet analyzed */}
+                {!insightsLoading && insights === null && (
+                  <div style={{ fontSize: 13, color: 'var(--ink-faint)', fontStyle: 'italic', padding: '4px 0' }}>
+                    Click Analyze to surface patterns from your habit history.
+                  </div>
+                )}
+
+                {/* insight cards */}
+                {!insightsLoading && insights !== null && insights.length > 0 && insights.map((text, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      padding: '12px 16px',
+                      borderRadius: 10,
+                      background: 'var(--bg-sunk)',
+                      borderLeft: '3px solid var(--accent)',
+                      display: 'flex', gap: 10, alignItems: 'flex-start',
+                    }}
+                  >
+                    <span style={{ fontSize: 15, flexShrink: 0, marginTop: 1 }}>
+                      {i === 0 ? '📊' : i === 1 ? '🔗' : '📈'}
+                    </span>
+                    <p style={{
+                      margin: 0, fontSize: 13, lineHeight: 1.65,
+                      color: 'var(--ink)', fontFamily: 'var(--font-sans)',
+                    }}>
+                      {text}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* habit cards grid or empty state */}
         {habits.length === 0 ? (
