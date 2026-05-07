@@ -1,7 +1,7 @@
 'use client';
 import { useRef, useEffect, useState } from 'react';
 import { gsap } from 'gsap';
-import { Task } from '@/lib/data';
+import { Task, parseRecurrenceFromTitle, recurrenceLabel, nextOccurrenceDate, dateToDueBucket } from '@/lib/data';
 import { useApp } from '@/lib/store';
 import Icon from './Icon';
 
@@ -31,6 +31,54 @@ export default function TaskModal({ editTask, onAdd, onEdit, onClose }: TaskModa
   const [due, setDue] = useState<Task['due']>(editTask?.due ?? 'today');
   const [priority, setPriority] = useState<'high' | 'medium' | 'low'>(editTask?.priority ?? 'medium');
   const [project, setProject] = useState(editTask?.project ?? projects[0]?.name ?? '');
+
+  // Recurrence state
+  const initRule = editTask?.recurrenceRule ?? '';
+  const [recurrenceType, setRecurrenceType] = useState<'' | 'daily' | 'weekly' | 'biweekly' | 'monthly'>(() => {
+    if (!initRule) return '';
+    return initRule.split(':')[0] as 'daily' | 'weekly' | 'biweekly' | 'monthly';
+  });
+  const [weekDay,  setWeekDay]  = useState(() => initRule.startsWith('weekly:')  ? parseInt(initRule.split(':')[1], 10) : 1);
+  const [monthDay, setMonthDay] = useState(() => initRule.startsWith('monthly:') ? parseInt(initRule.split(':')[1], 10) : 1);
+  const [nlpHint,  setNlpHint]  = useState('');
+
+  const effectiveRule =
+    recurrenceType === 'weekly'   ? `weekly:${weekDay}`    :
+    recurrenceType === 'biweekly' ? `biweekly:${weekDay}`  :
+    recurrenceType === 'monthly'  ? `monthly:${monthDay}`  :
+    recurrenceType; // 'daily' or ''
+
+  // Auto-set due bucket when recurrence rule is chosen
+  useEffect(() => {
+    if (!effectiveRule) return;
+    const nextDate = nextOccurrenceDate(effectiveRule, new Date());
+    setDue(dateToDueBucket(nextDate));
+  }, [effectiveRule]);
+
+  const handleTitleChange = (val: string) => {
+    setTitle(val);
+    if (recurrenceType) return; // don't override manual selection
+    const parsed = parseRecurrenceFromTitle(val);
+    if (parsed) {
+      setNlpHint(recurrenceLabel(parsed.rule));
+    } else {
+      setNlpHint('');
+    }
+  };
+
+  const applyNlpHint = () => {
+    const parsed = parseRecurrenceFromTitle(title);
+    if (!parsed) return;
+    const [type, val] = parsed.rule.split(':');
+    setRecurrenceType(type as 'daily' | 'weekly' | 'biweekly' | 'monthly');
+    if (type === 'weekly')  setWeekDay(parseInt(val, 10));
+    if (type === 'monthly') setMonthDay(parseInt(val, 10));
+    setTitle(parsed.cleanTitle);
+    setNlpHint('');
+    // Auto-set due to next occurrence
+    const nextDate = nextOccurrenceDate(parsed.rule, new Date());
+    setDue(dateToDueBucket(nextDate));
+  };
   const overlayRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -51,10 +99,11 @@ export default function TaskModal({ editTask, onAdd, onEdit, onClose }: TaskModa
 
   const submit = () => {
     if (!title.trim()) return;
+    const rule = effectiveRule || undefined;
     if (isEdit && editTask && onEdit) {
-      onEdit({ ...editTask, title: title.trim(), due, priority, project });
+      onEdit({ ...editTask, title: title.trim(), due, priority, project, recurrenceRule: rule });
     } else if (onAdd) {
-      onAdd({ title: title.trim(), done: false, project: project || 'Inbox', tone: 'terra', attach: 0, due, time: '—', priority });
+      onAdd({ title: title.trim(), done: false, project: project || 'Inbox', tone: 'terra', attach: 0, due, time: '—', priority, recurrenceRule: rule });
     }
     close();
   };
@@ -82,7 +131,7 @@ export default function TaskModal({ editTask, onAdd, onEdit, onClose }: TaskModa
         <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 18 }}>
           <div>
             <label style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--ink-faint)', display: 'block', marginBottom: 6 }}>Task</label>
-            <input ref={inputRef} value={title} onChange={e => setTitle(e.target.value)}
+            <input ref={inputRef} value={title} onChange={e => handleTitleChange(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && submit()}
               placeholder="What needs to get done?"
               style={{
@@ -94,6 +143,17 @@ export default function TaskModal({ editTask, onAdd, onEdit, onClose }: TaskModa
               onFocus={e => (e.currentTarget.style.borderColor = 'var(--accent)')}
               onBlur={e => (e.currentTarget.style.borderColor = 'var(--line)')}
             />
+            {nlpHint && (
+              <button onClick={applyNlpHint} style={{
+                marginTop: 6, display: 'flex', alignItems: 'center', gap: 6,
+                padding: '4px 10px', borderRadius: 6, border: '1px dashed var(--accent)',
+                background: 'var(--accent-soft)', cursor: 'pointer',
+                fontSize: 11, color: 'var(--accent)', fontFamily: 'var(--font-mono)',
+                fontWeight: 600, transition: 'all 0.13s',
+              }}>
+                <Icon name="repeat" size={11} /> Set as "{nlpHint}" ↵
+              </button>
+            )}
           </div>
 
           <div>
@@ -114,6 +174,33 @@ export default function TaskModal({ editTask, onAdd, onEdit, onClose }: TaskModa
               <Chip label="Medium"   active={priority === 'medium'} onClick={() => setPriority('medium')} color="#c9943a" />
               <Chip label="Low"      active={priority === 'low'}    onClick={() => setPriority('low')}    color="#7a9e7e" />
             </div>
+          </div>
+
+          <div>
+            <label style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--ink-faint)', display: 'block', marginBottom: 8 }}>
+              Repeat {effectiveRule && <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, color: 'var(--accent)', fontSize: 11 }}>↻ {recurrenceLabel(effectiveRule)}</span>}
+            </label>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              <Chip label="None"       active={recurrenceType === ''}         onClick={() => setRecurrenceType('')} />
+              <Chip label="Daily"      active={recurrenceType === 'daily'}     onClick={() => setRecurrenceType('daily')} />
+              <Chip label="Weekly"     active={recurrenceType === 'weekly'}    onClick={() => setRecurrenceType('weekly')} />
+              <Chip label="Biweekly"   active={recurrenceType === 'biweekly'} onClick={() => setRecurrenceType('biweekly')} />
+              <Chip label="Monthly"    active={recurrenceType === 'monthly'}   onClick={() => setRecurrenceType('monthly')} />
+            </div>
+            {(recurrenceType === 'weekly' || recurrenceType === 'biweekly') && (
+              <div style={{ display: 'flex', gap: 5, marginTop: 8, flexWrap: 'wrap' }}>
+                {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map((d, i) => (
+                  <Chip key={i} label={d} active={weekDay === i} onClick={() => setWeekDay(i)} />
+                ))}
+              </div>
+            )}
+            {recurrenceType === 'monthly' && (
+              <div style={{ display: 'flex', gap: 5, marginTop: 8, flexWrap: 'wrap' }}>
+                {[1,5,10,15,20,25,28].map(d => (
+                  <Chip key={d} label={`${d}${['th','st','nd','rd'][d<=3?d:0]}`} active={monthDay === d} onClick={() => setMonthDay(d)} />
+                ))}
+              </div>
+            )}
           </div>
 
           <div>
