@@ -1,9 +1,10 @@
 'use client';
 import { useRef, useEffect, useState } from 'react';
 import { gsap } from 'gsap';
-import { Task, parseRecurrenceFromTitle, recurrenceLabel, nextOccurrenceDate, dateToDueBucket } from '@/lib/data';
+import { Task, recurrenceLabel, nextOccurrenceDate, dateToDueBucket } from '@/lib/data';
 import { useApp } from '@/lib/store';
 import Icon from './Icon';
+import type { ParseRecurrenceResult } from '@/app/api/tasks/parse-recurrence/route';
 
 interface TaskModalProps {
   editTask?: Task;
@@ -40,7 +41,9 @@ export default function TaskModal({ editTask, onAdd, onEdit, onClose }: TaskModa
   });
   const [weekDay,  setWeekDay]  = useState(() => initRule.startsWith('weekly:')  ? parseInt(initRule.split(':')[1], 10) : 1);
   const [monthDay, setMonthDay] = useState(() => initRule.startsWith('monthly:') ? parseInt(initRule.split(':')[1], 10) : 1);
-  const [nlpHint,  setNlpHint]  = useState('');
+  const [aiParsed,   setAiParsed]   = useState<ParseRecurrenceResult | null>(null);
+  const [aiLoading,  setAiLoading]  = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const effectiveRule =
     recurrenceType === 'weekly'   ? `weekly:${weekDay}`    :
@@ -58,25 +61,39 @@ export default function TaskModal({ editTask, onAdd, onEdit, onClose }: TaskModa
   const handleTitleChange = (val: string) => {
     setTitle(val);
     if (recurrenceType) return; // don't override manual selection
-    const parsed = parseRecurrenceFromTitle(val);
-    if (parsed) {
-      setNlpHint(recurrenceLabel(parsed.rule));
-    } else {
-      setNlpHint('');
-    }
+
+    setAiParsed(null);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+
+    if (!val.trim()) { setAiLoading(false); return; }
+
+    setAiLoading(true);
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch('/api/tasks/parse-recurrence', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: val }),
+        });
+        const data: ParseRecurrenceResult = await res.json();
+        setAiParsed(data.rule ? data : null);
+      } catch {
+        // silently ignore — user can set recurrence manually
+      } finally {
+        setAiLoading(false);
+      }
+    }, 500);
   };
 
-  const applyNlpHint = () => {
-    const parsed = parseRecurrenceFromTitle(title);
-    if (!parsed) return;
-    const [type, val] = parsed.rule.split(':');
+  const applyAiHint = () => {
+    if (!aiParsed?.rule) return;
+    const [type, val] = aiParsed.rule.split(':');
     setRecurrenceType(type as 'daily' | 'weekly' | 'biweekly' | 'monthly');
-    if (type === 'weekly')  setWeekDay(parseInt(val, 10));
+    if (type === 'weekly' || type === 'biweekly') setWeekDay(parseInt(val, 10));
     if (type === 'monthly') setMonthDay(parseInt(val, 10));
-    setTitle(parsed.cleanTitle);
-    setNlpHint('');
-    // Auto-set due to next occurrence
-    const nextDate = nextOccurrenceDate(parsed.rule, new Date());
+    setTitle(aiParsed.cleanTitle);
+    setAiParsed(null);
+    const nextDate = nextOccurrenceDate(aiParsed.rule, new Date());
     setDue(dateToDueBucket(nextDate));
   };
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -143,15 +160,24 @@ export default function TaskModal({ editTask, onAdd, onEdit, onClose }: TaskModa
               onFocus={e => (e.currentTarget.style.borderColor = 'var(--accent)')}
               onBlur={e => (e.currentTarget.style.borderColor = 'var(--line)')}
             />
-            {nlpHint && (
-              <button onClick={applyNlpHint} style={{
-                marginTop: 6, display: 'flex', alignItems: 'center', gap: 6,
-                padding: '4px 10px', borderRadius: 6, border: '1px dashed var(--accent)',
-                background: 'var(--accent-soft)', cursor: 'pointer',
-                fontSize: 11, color: 'var(--accent)', fontFamily: 'var(--font-mono)',
-                fontWeight: 600, transition: 'all 0.13s',
-              }}>
-                <Icon name="repeat" size={11} /> Set as "{nlpHint}" ↵
+            {(aiLoading || aiParsed) && (
+              <button
+                onClick={applyAiHint}
+                disabled={aiLoading || !aiParsed}
+                style={{
+                  marginTop: 6, display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '4px 10px', borderRadius: 6,
+                  border: `1px dashed ${aiLoading ? 'var(--line)' : 'var(--accent)'}`,
+                  background: aiLoading ? 'var(--bg-sunk)' : 'var(--accent-soft)',
+                  cursor: aiLoading ? 'default' : 'pointer',
+                  fontSize: 11, color: aiLoading ? 'var(--ink-faint)' : 'var(--accent)',
+                  fontFamily: 'var(--font-mono)', fontWeight: 600, transition: 'all 0.13s',
+                }}
+              >
+                {aiLoading
+                  ? <>✦ Detecting…</>
+                  : <><Icon name="repeat" size={11} /> Set as &ldquo;{aiParsed!.label}&rdquo; &crarr;</>
+                }
               </button>
             )}
           </div>

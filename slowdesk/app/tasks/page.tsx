@@ -688,11 +688,16 @@ export default function TasksPage() {
                   <div style={{ textAlign: 'center' }}>
                     <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--accent)', fontFamily: 'var(--font-display)' }}>
                       {(() => {
+                        const rule = historyTask.recurrenceRule ?? '';
+                        const period = rule === 'daily' ? 1 : rule.startsWith('biweekly') ? 14 : rule.startsWith('monthly') ? 31 : 7;
+                        const sorted = [...historyEntries]
+                          .map(e => new Date(e.completedAt).getTime())
+                          .sort((a, b) => b - a);
                         let streak = 0;
-                        const sorted = [...historyEntries].sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime());
-                        for (const e of sorted) {
-                          const diff = (Date.now() - new Date(e.completedAt).getTime()) / 86400000;
-                          if (diff < (streak + 1) * 8) streak++; else break;
+                        let cursor = Date.now();
+                        for (const ts of sorted) {
+                          const gap = (cursor - ts) / 86400000;
+                          if (gap <= period + 1) { streak++; cursor = ts; } else break;
                         }
                         return streak;
                       })()}
