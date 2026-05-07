@@ -115,6 +115,7 @@ export default function NotesPage() {
   const [gratOpen, setGratOpen] = useState(false);
   const [showAddTask, setShowAddTask] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [showAITip, setShowAITip] = useState(false);
 
   // Load user and notes from Supabase
   useEffect(() => {
@@ -245,6 +246,7 @@ export default function NotesPage() {
       setNotes(prev => [note, ...prev]);
       setContent(prev => ({ ...prev, [newNote.id]: '' }));
       setActiveId(newNote.id);
+      setShowAITip(true);
     } catch (err) {
       console.error('Failed to create note:', err);
     }
@@ -484,6 +486,57 @@ export default function NotesPage() {
               }}
             />
 
+            {/* ── AI tip for new notes ─────────────────────── */}
+            {showAITip && (
+              <div style={{
+                marginBottom: 20, borderRadius: 12, padding: '14px 16px',
+                background: 'linear-gradient(135deg, rgba(193,98,63,0.08) 0%, rgba(201,148,58,0.06) 100%)',
+                border: '1.5px solid rgba(193,98,63,0.25)',
+                display: 'flex', alignItems: 'flex-start', gap: 12,
+                animation: 'aiTipIn 0.3s ease-out',
+              }}>
+                <div style={{
+                  width: 32, height: 32, borderRadius: 9, flexShrink: 0,
+                  background: 'linear-gradient(135deg, #c1623f 0%, #c9943a 100%)',
+                  display: 'grid', placeItems: 'center',
+                  boxShadow: '0 2px 8px rgba(193,98,63,0.3)',
+                }}>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="white">
+                    <path d="m12 3 1.9 5.3L19 10l-5.1 1.7L12 17l-1.9-5.3L5 10l5.1-1.7z"/>
+                  </svg>
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)', marginBottom: 3 }}>
+                    Try the AI assistant
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--ink-soft)', lineHeight: 1.5 }}>
+                    Once you've written something, hit <strong style={{ color: 'var(--accent)' }}>✦ AI</strong> to summarize your note, extract action items, or ask questions about it.
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                    <button
+                      onClick={() => { setShowAI(true); setShowAITip(false); setAiAction(null); }}
+                      style={{
+                        padding: '4px 12px', borderRadius: 6, border: 'none',
+                        background: 'linear-gradient(135deg, #c1623f 0%, #c9943a 100%)',
+                        color: '#fff', fontSize: 11, fontWeight: 700,
+                        cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                        boxShadow: '0 1px 6px rgba(193,98,63,0.3)',
+                      }}
+                    >Open AI panel</button>
+                    <button
+                      onClick={() => setShowAITip(false)}
+                      style={{
+                        padding: '4px 12px', borderRadius: 6,
+                        border: '1px solid var(--line)', background: 'transparent',
+                        color: 'var(--ink-faint)', fontSize: 11,
+                        cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                      }}
+                    >Dismiss</button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* body textarea */}
             <textarea
               ref={editorRef}
@@ -514,18 +567,25 @@ export default function NotesPage() {
                 </span>
               )}
               <button
-                onClick={() => { setShowAI(v => !v); if (!showAI) { setAiAction(null); setAiResponse(''); setExtractedTasks([]); } }}
+                onClick={() => { setShowAI(v => !v); setShowAITip(false); if (!showAI) { setAiAction(null); setAiResponse(''); setExtractedTasks([]); } }}
                 style={{
-                  padding: '5px 12px', borderRadius: 7,
-                  border: `1.5px solid ${showAI ? 'var(--accent)' : 'var(--line)'}`,
-                  background: showAI ? 'var(--accent-soft)' : 'var(--bg-sunk)',
-                  fontSize: 12, fontWeight: 600,
-                  color: showAI ? 'var(--accent)' : 'var(--ink-soft)',
+                  padding: '5px 14px', borderRadius: 7,
+                  border: 'none',
+                  background: showAI
+                    ? 'var(--accent)'
+                    : 'linear-gradient(135deg, #c1623f 0%, #c9943a 100%)',
+                  fontSize: 12, fontWeight: 700,
+                  color: '#fff',
                   cursor: 'pointer', fontFamily: 'var(--font-sans)',
                   transition: 'all 0.15s', display: 'flex', alignItems: 'center', gap: 5,
+                  boxShadow: showAI ? 'none' : '0 2px 8px rgba(193,98,63,0.35)',
+                  letterSpacing: '0.02em',
+                  opacity: showAI ? 0.85 : 1,
                 }}
+                onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 3px 12px rgba(193,98,63,0.5)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                onMouseLeave={e => { e.currentTarget.style.boxShadow = showAI ? 'none' : '0 2px 8px rgba(193,98,63,0.35)'; e.currentTarget.style.transform = 'none'; }}
               >
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" style={{ filter: 'drop-shadow(0 0 3px rgba(255,255,255,0.6))' }}>
                   <path d="m12 3 1.9 5.3L19 10l-5.1 1.7L12 17l-1.9-5.3L5 10l5.1-1.7z"/>
                 </svg>
                 AI
