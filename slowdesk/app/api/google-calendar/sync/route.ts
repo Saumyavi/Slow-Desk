@@ -97,7 +97,8 @@ export async function POST(request: Request) {
   );
 
   if (!gcalRes.ok) {
-    return NextResponse.json({ error: 'Google Calendar API error' }, { status: 502 });
+    const gcalErr = await gcalRes.json().catch(() => ({}));
+    return NextResponse.json({ error: 'Google Calendar API error', detail: gcalErr }, { status: 502 });
   }
 
   const gcalData = await gcalRes.json();
