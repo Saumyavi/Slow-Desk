@@ -32,7 +32,8 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true },
   icons: {
     icon: '/favicon.ico',
-    apple: '/apple-touch-icon.png',
+    apple: [{ url: '/api/icon?size=180', sizes: '180x180', type: 'image/png' }],
+    other: [{ rel: 'mask-icon', url: '/favicon.ico' }],
   },
 };
 
@@ -40,6 +41,8 @@ export const viewport: Viewport = {
   themeColor: '#c1623f',
   width: 'device-width',
   initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
