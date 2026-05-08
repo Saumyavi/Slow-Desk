@@ -46,6 +46,7 @@ function TaskItem({ task, projectColor, onToggle, onEdit, onDelete, onSkip, onHi
   const [selected,        setSelected]        = useState<Set<string>>(new Set());
   const [addingSubtask,   setAddingSubtask]   = useState(false);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
+  const [subtaskWarn,     setSubtaskWarn]     = useState(false);
 
   const doneCount  = subtasks.filter(s => s.done).length;
   const totalCount = subtasks.length;
@@ -71,6 +72,11 @@ function TaskItem({ task, projectColor, onToggle, onEdit, onDelete, onSkip, onHi
   }, [isNew]);
 
   const handleToggle = () => {
+    if (!task.done && totalCount > 0 && doneCount < totalCount) {
+      setSubtaskWarn(true);
+      setTimeout(() => setSubtaskWarn(false), 2500);
+      return;
+    }
     if (!task.done && checkRef.current) {
       gsap.timeline()
         .to(checkRef.current, { scale: 1.4, duration: 0.1, ease: 'power2.out' })
@@ -146,7 +152,7 @@ function TaskItem({ task, projectColor, onToggle, onEdit, onDelete, onSkip, onHi
       data-taskrow
       style={{
         background: 'var(--bg-elev)', borderRadius: 10, border: '1px solid var(--line)',
-        transition: 'border-color 0.15s, box-shadow 0.15s', overflow: 'hidden',
+        transition: 'border-color 0.15s, box-shadow 0.15s',
       }}
       onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(193,98,63,0.25)'; e.currentTarget.style.boxShadow = '0 2px 12px rgba(0,0,0,0.06)'; setShowFocusBtn(true); }}
       onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--line)'; e.currentTarget.style.boxShadow = 'none'; setShowFocusBtn(false); }}
@@ -251,8 +257,8 @@ function TaskItem({ task, projectColor, onToggle, onEdit, onDelete, onSkip, onHi
             </button>
           )}
 
-          {/* AI break-into-steps button */}
-          <button
+          {/* AI break-into-steps button — hidden when done */}
+          {!task.done && <button
             onClick={handleAIBreak}
             title="Break into steps with AI"
             style={{
@@ -267,7 +273,7 @@ function TaskItem({ task, projectColor, onToggle, onEdit, onDelete, onSkip, onHi
             <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
               <path d="m12 3 1.9 5.3L19 10l-5.1 1.7L12 17l-1.9-5.3L5 10l5.1-1.7z"/>
             </svg>
-          </button>
+          </button>}
 
           {/* Three-dot menu */}
           <div ref={menuRef} style={{ position: 'relative' }}>
@@ -362,6 +368,19 @@ function TaskItem({ task, projectColor, onToggle, onEdit, onDelete, onSkip, onHi
         </div>
       </div>
 
+      {/* ── Subtask completion warning ── */}
+      {subtaskWarn && (
+        <div style={{
+          borderTop: '1px solid rgba(193,98,63,0.25)',
+          padding: '7px 16px 7px 44px',
+          background: 'rgba(193,98,63,0.07)',
+          fontSize: 12, color: '#c1623f',
+          borderRadius: '0 0 10px 10px',
+        }}>
+          Complete all {totalCount - doneCount} remaining step{totalCount - doneCount !== 1 ? 's' : ''} first.
+        </div>
+      )}
+
       {/* ── New task AI suggestion strip ── */}
       {isNew && !showPanel && subtasks.length === 0 && (
         <div style={{
@@ -370,6 +389,7 @@ function TaskItem({ task, projectColor, onToggle, onEdit, onDelete, onSkip, onHi
           display: 'flex', alignItems: 'center', gap: 10,
           background: 'linear-gradient(90deg, rgba(193,98,63,0.05) 0%, transparent 100%)',
           animation: 'aiTipIn 0.25s ease-out',
+          borderRadius: '0 0 10px 10px',
         }}>
           <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" style={{ color: 'var(--accent)', flexShrink: 0, opacity: 0.8 }}>
             <path d="m12 3 1.9 5.3L19 10l-5.1 1.7L12 17l-1.9-5.3L5 10l5.1-1.7z"/>
@@ -401,9 +421,9 @@ function TaskItem({ task, projectColor, onToggle, onEdit, onDelete, onSkip, onHi
         </div>
       )}
 
-      {/* ── AI + subtask panel ── */}
-      {showPanel && (
-        <div style={{ borderTop: '1px solid var(--line)', background: 'var(--bg)', padding: '10px 16px 12px 44px' }}>
+      {/* ── AI + subtask panel — only when task is not done ── */}
+      {showPanel && !task.done && (
+        <div style={{ borderTop: '1px solid var(--line)', background: 'var(--bg)', padding: '10px 16px 12px 44px', borderRadius: '0 0 10px 10px' }}>
 
           {/* Existing subtasks */}
           {subtasks.map(st => (
@@ -748,7 +768,7 @@ export default function TasksPage() {
   const byTab = (() => {
     switch (filter) {
       case 'today':     return tasks.filter(t => t.due === 'today'    && !t.done);
-      case 'upcoming':  return tasks.filter(t => t.due === 'tomorrow' && !t.done);
+      case 'upcoming':  return tasks.filter(t => (t.due === 'tomorrow' || t.due === 'this week' || t.due === 'next week') && !t.done);
       case 'completed': return tasks.filter(t => t.done);
       case 'recurring': return tasks.filter(t => !!t.recurrenceRule   && !t.done);
       default:          return tasks;
@@ -770,7 +790,7 @@ export default function TasksPage() {
   const FILTERS = [
     { key: 'all'       as Filter, label: 'All',       count: tasks.length },
     { key: 'today'     as Filter, label: 'Today',     count: tasks.filter(t => t.due === 'today'    && !t.done).length },
-    { key: 'upcoming'  as Filter, label: 'Upcoming',  count: tasks.filter(t => t.due === 'tomorrow' && !t.done).length },
+    { key: 'upcoming'  as Filter, label: 'Upcoming',  count: tasks.filter(t => (t.due === 'tomorrow' || t.due === 'this week' || t.due === 'next week') && !t.done).length },
     { key: 'completed' as Filter, label: 'Completed', count: completedCount },
     { key: 'recurring' as Filter, label: '↻ Recurring', count: recurringCount },
   ];
