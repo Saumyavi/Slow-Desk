@@ -1,5 +1,6 @@
 'use client';
 import { useRef, useEffect, useState, useCallback, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { gsap } from 'gsap';
 import { createClient } from '@/lib/supabase/client';
 import { useApp } from '@/lib/store';
@@ -250,8 +251,19 @@ function WeekGantt({ weekOffset }: { weekOffset: number }) {
 
   const MONTHS = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
 
-  // Build bar rows: tasks + calendar events
+  // Build bar rows: tasks first so manual tasks are always visible
   const bars: { label: string; color: string; start: number; end: number }[] = [];
+
+  // tasks by due date (added first to guarantee visibility)
+  tasks.forEach(t => {
+    let colIdx = -1;
+    if (t.due === 'today') colIdx = todayIdx;
+    else if (t.due === 'tomorrow') colIdx = todayIdx + 1;
+    if (colIdx >= 0 && colIdx < 5) {
+      const projColor = TONE_COLORS[t.tone] || 'var(--accent)';
+      bars.push({ label: t.title, color: projColor, start: colIdx, end: colIdx + 1 });
+    }
+  });
 
   // calendar events → single-day bars
   calendarEvents.forEach(ev => {
@@ -261,19 +273,7 @@ function WeekGantt({ weekOffset }: { weekOffset: number }) {
       bars.push({ label: ev.title, color: ev.color, start: idx, end: idx + 1 });
   });
 
-  // tasks by due date
-  tasks.forEach(t => {
-    let colIdx = -1;
-    if (t.due === 'today') colIdx = todayIdx;
-    else if (t.due === 'tomorrow') colIdx = todayIdx + 1;
-    if (colIdx >= 0 && colIdx < 5) {
-      const projColor = TONE_COLORS[t.tone] || 'var(--accent)';
-      bars.push({ label: t.title, color: projColor, start: Math.max(0, colIdx - 1), end: colIdx + 1 });
-    }
-  });
-
-  // Show at most 6 bars
-  const visibleBars = bars.slice(0, 6);
+  const visibleBars = bars.slice(0, 10);
 
   return (
     <div className="gantt-scroll">
@@ -592,6 +592,7 @@ function ThisMonth() {
 /* ── Active projects 2×2 grid ───────────────────────────────── */
 function ActiveProjects() {
   const { projects, tasks } = useApp();
+  const router = useRouter();
   const barRefs = useRef<(HTMLElement | null)[]>([]);
 
   useEffect(() => {
@@ -616,7 +617,14 @@ function ActiveProjects() {
     <div className="card" style={{ padding: '18px 20px' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
         <span style={{ fontSize: 14, fontWeight: 600 }}>Active projects</span>
-        <Icon name="list" size={14} style={{ color: 'var(--ink-faint)' }} />
+        <button onClick={() => router.push('/projects')} style={{
+          background: 'none', border: 'none', cursor: 'pointer',
+          color: 'var(--ink-faint)', display: 'flex', alignItems: 'center', padding: 4, borderRadius: 6,
+        }}
+          onMouseEnter={e => (e.currentTarget.style.color = 'var(--accent)')}
+          onMouseLeave={e => (e.currentTarget.style.color = 'var(--ink-faint)')}
+          title="View all projects"
+        ><Icon name="list" size={14} /></button>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, minWidth: 0 }}>
         {projects.slice(0, 4).map((p, i) => {
@@ -651,6 +659,86 @@ function ActiveProjects() {
           );
         })}
       </div>
+    </div>
+  );
+}
+
+/* ── Weekly retrospective widget ───────────────────────────── */
+function WeeklyRetro() {
+  const [insight, setInsight] = useState('');
+  const [stats, setStats] = useState<{ completedTasks: number; totalTasks: number; completionRate: number } | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [generated, setGenerated] = useState(false);
+
+  const generate = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/retrospective/me');
+      const data = await res.json();
+      setInsight(data.insight ?? 'Could not generate insight. Please try again.');
+      setStats(data.stats ?? null);
+      setGenerated(true);
+    } catch {
+      setInsight('Could not generate insight. Please try again.');
+      setGenerated(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const isSunday = new Date().getDay() === 0;
+
+  return (
+    <div className="card" style={{ padding: '18px 20px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+        <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--ink-faint)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+          Weekly reflection
+        </span>
+        <span style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--ink-faint)', background: 'var(--bg-sunk)', padding: '2px 8px', borderRadius: 4, border: '1px solid var(--line)' }}>
+          {isSunday ? '✦ auto-sent today' : 'auto-sends Sundays'}
+        </span>
+      </div>
+
+      {!generated ? (
+        <div style={{ textAlign: 'center', padding: '16px 0' }}>
+          <p style={{ fontSize: 12, color: 'var(--ink-faint)', fontStyle: 'italic', marginBottom: 14, lineHeight: 1.6 }}>
+            {isSunday ? 'Your weekly reflection is ready.' : "Preview this week's AI reflection anytime."}
+          </p>
+          <button onClick={generate} disabled={loading} style={{
+            padding: '8px 18px', borderRadius: 8, border: 'none',
+            background: loading ? 'var(--bg-sunk)' : 'var(--accent)',
+            color: loading ? 'var(--ink-faint)' : '#fff',
+            fontSize: 13, fontWeight: 600, cursor: loading ? 'default' : 'pointer',
+            fontFamily: 'var(--font-sans)', transition: 'all 0.15s',
+          }}>
+            {loading ? '✦ Generating…' : isSunday ? 'Generate reflection' : 'Preview reflection'}
+          </button>
+        </div>
+      ) : (
+        <div>
+          {stats && (
+            <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
+              {[
+                { label: 'Completed', value: stats.completedTasks, color: '#7a9e7e' },
+                { label: 'Total tasks', value: stats.totalTasks, color: 'var(--ink-soft)' },
+                { label: 'Rate', value: `${stats.completionRate}%`, color: 'var(--accent)' },
+              ].map(s => (
+                <div key={s.label} style={{ flex: 1, textAlign: 'center', padding: '8px', borderRadius: 8, background: 'var(--bg-sunk)', border: '1px solid var(--line)' }}>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: s.color, fontFamily: 'var(--font-mono)' }}>{s.value}</div>
+                  <div style={{ fontSize: 10, color: 'var(--ink-faint)', marginTop: 2 }}>{s.label}</div>
+                </div>
+              ))}
+            </div>
+          )}
+          <p style={{ fontSize: 13, color: 'var(--ink-soft)', lineHeight: 1.75, fontStyle: 'italic', margin: 0, marginBottom: 12 }}>
+            &ldquo;{insight}&rdquo;
+          </p>
+          <button onClick={() => { setGenerated(false); setInsight(''); setStats(null); }} style={{
+            fontSize: 11, color: 'var(--ink-faint)', background: 'none', border: 'none',
+            cursor: 'pointer', fontFamily: 'var(--font-sans)', padding: 0,
+          }}>↺ Regenerate</button>
+        </div>
+      )}
     </div>
   );
 }
@@ -758,8 +846,8 @@ export default function DashboardPage() {
     if (sortBy === 'name')     return a.title.localeCompare(b.title);
     return 0;
   });
-  const todayTasks = sortedTasks;
-  const doneCount  = tasks.filter(t => t.done).length;
+  const todayTasks = sortedTasks.filter(t => t.due === 'today');
+  const todayDoneCount = todayTasks.filter(t => t.done).length;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', paddingBottom: 40 }}>
@@ -787,7 +875,7 @@ export default function DashboardPage() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
                 <h3 className="serif" style={{ fontSize: 20, fontWeight: 400, margin: 0 }}>Today</h3>
                 <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--ink-faint)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em' }}>
-                  {doneCount}/{tasks.length} done · drag to reorder
+                  {todayDoneCount}/{todayTasks.length} done · drag to reorder
                 </span>
                 <div style={{ flex: 1 }} />
                 <div ref={sortRef} style={{ position: 'relative' }}>
@@ -830,9 +918,9 @@ export default function DashboardPage() {
                     onEdit={setEditingTask} onDelete={onDelete}
                   />
                 ))}
-                {tasks.length === 0 && (
+                {todayTasks.length === 0 && (
                   <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--ink-faint)', fontSize: 13, fontStyle: 'italic' }}>
-                    No tasks yet — add one above
+                    No tasks due today — add one above
                   </div>
                 )}
               </div>
@@ -863,6 +951,8 @@ export default function DashboardPage() {
               </div>
               <WeekGantt weekOffset={weekOffset} />
             </div>
+
+            <WeeklyRetro />
           </div>
 
           {/* ── RIGHT col ── */}
