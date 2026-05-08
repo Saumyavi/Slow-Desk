@@ -41,9 +41,9 @@ export async function POST(_req: NextRequest) {
       .order('priority', { ascending: false })
       .limit(10);
 
-    const taskList = (tasks || []).map((t: { title: string; priority: string; projects: { name: string } | null }) => ({
+    const taskList = (tasks || []).map((t: { title: string; priority: string; projects: { name: string }[] | { name: string } | null }) => ({
       title: t.title,
-      project: t.projects?.name || '',
+      project: (Array.isArray(t.projects) ? t.projects[0]?.name : t.projects?.name) || '',
       priority: t.priority,
     }));
 
