@@ -269,12 +269,14 @@ export default function ProfilePage() {
     try {
       const res = await fetch('/api/notifications/send-test-digest', { method: 'POST' });
       const json = await res.json();
+      if (json.debug) console.log('[digest debug]', json.debug);
       if (!res.ok || !json.success) {
-        setTestResult({ ok: false, msg: json.errors?.[0] || json.error || 'Failed to send' });
+        const errMsg = json.errors?.[0] || json.error || 'Failed to send';
+        setTestResult({ ok: false, msg: errMsg });
       } else {
         const channels = json.sent?.join(' & ') || 'notification';
-        setTestResult({ ok: true, msg: `Test ${channels} sent!` });
-        setTimeout(() => setTestResult(null), 5000);
+        setTestResult({ ok: true, msg: `Test ${channels} sent! Check inbox / spam.` });
+        setTimeout(() => setTestResult(null), 8000);
       }
     } catch {
       setTestResult({ ok: false, msg: 'Network error — check console' });
