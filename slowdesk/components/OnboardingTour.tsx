@@ -29,6 +29,18 @@ const SLIDES = [
     accent: '#c9943a',
   },
   {
+    emoji: '🍅',
+    headline: 'Focus with Pomodoro',
+    sub: 'Work in focused sprints. The built-in timer keeps you in flow — no distractions, just deep work.',
+    accent: '#c1623f',
+  },
+  {
+    emoji: '🤖',
+    headline: 'Your AI companion',
+    sub: 'Get smart suggestions, task breakdowns, and insights — all powered by AI, right inside slowdesk.',
+    accent: '#8b5c75',
+  },
+  {
     emoji: '✨',
     headline: 'Ready when you are',
     sub: "Your workspace is set up. Let's get started.",
