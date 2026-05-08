@@ -61,9 +61,10 @@ export async function GET(request: Request) {
 
         const sent: string[] = [];
 
+        const fromAddr = process.env.RESEND_FROM_EMAIL || 'SlowDesk <onboarding@resend.dev>';
         if (profile.notification_email_enabled && userEmail) {
           await resend.emails.send({
-            from: 'SlowDesk <onboarding@resend.dev>',
+            from: fromAddr,
             to: userEmail,
             subject: `☕ Your morning ritual — ${dateLabel}`,
             html: getMorningDigestEmail(digestData),
