@@ -91,11 +91,13 @@ export async function POST(_req: NextRequest) {
     if (profile.notification_whatsapp_enabled && profile.notification_phone) {
       try {
         const contentSid = process.env.TWILIO_CONTENT_SID;
-        await sendWhatsApp(
+        const waResult = await sendWhatsApp(
           contentSid
             ? { to: profile.notification_phone, contentSid, contentVariables: getMorningDigestTemplateVars(digestData) }
             : { to: profile.notification_phone, body: getMorningDigestWhatsApp(digestData) },
         );
+        debug.twilioSid = waResult.sid;
+        debug.twilioStatus = waResult.status;
         sent.push('whatsapp');
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);

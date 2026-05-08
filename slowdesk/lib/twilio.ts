@@ -17,7 +17,7 @@ export interface WhatsAppPayload {
   contentVariables?: Record<string, string>; // template variable map {"1":"value","2":"value"}
 }
 
-export async function sendWhatsApp(payload: WhatsAppPayload): Promise<void> {
+export async function sendWhatsApp(payload: WhatsAppPayload): Promise<{ sid: string; status: string }> {
   const { accountSid, authToken, from } = getCredentials();
   const to = `whatsapp:+${payload.to.replace(/\D/g, '')}`;
 
@@ -47,8 +47,9 @@ export async function sendWhatsApp(payload: WhatsAppPayload): Promise<void> {
     body: params.toString(),
   });
 
+  const body = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(`Twilio error ${res.status}: ${err.message || res.statusText}`);
+    throw new Error(`Twilio error ${res.status}: ${body.message || res.statusText}`);
   }
+  return { sid: body.sid, status: body.status };
 }
