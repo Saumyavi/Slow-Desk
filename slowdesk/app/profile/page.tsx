@@ -130,8 +130,9 @@ export default function ProfilePage() {
   const [saved,    setSaved]    = useState(false);
   const [signOutConfirm, setSignOutConfirm] = useState(false);
 
-  const [avatarUrl,     setAvatarUrl]     = useState<string | null>(null);
+  const [avatarUrl,       setAvatarUrl]       = useState<string | null>(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
+  const [photoLightbox,   setPhotoLightbox]   = useState(false);
 
   // Morning ritual state
   const [notifEmailEnabled,   setNotifEmailEnabled]   = useState(false);
@@ -364,9 +365,10 @@ export default function ProfilePage() {
                   display: 'grid', placeItems: 'center', color: 'white',
                   fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: avatarUrl ? undefined : (avatar && avatar !== (name[0] || 's').toLowerCase() ? 44 : 52),
                   border: '3px solid var(--bg-elev)', overflow: 'hidden',
+                  animation: avatarUrl ? 'spin-slow 32s linear reverse infinite' : undefined,
                 }}>
                   {avatarUrl ? (
-                    <img src={avatarUrl} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%', display: 'block' }} />
+                    <img src={avatarUrl} alt="avatar" onClick={() => setPhotoLightbox(true)} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%', display: 'block', cursor: 'zoom-in' }} />
                   ) : avatar && !AVATAR_EMOJIS.every(e => e !== avatar) ? (
                     <span style={{ fontSize: 44, lineHeight: 1 }}>{avatar}</span>
                   ) : (
@@ -1033,6 +1035,17 @@ export default function ProfilePage() {
         <div style={{ textAlign: 'center', marginTop: 36, paddingTop: 24, borderTop: '1px dashed var(--line)', fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-faint)', letterSpacing: '0.16em', textTransform: 'uppercase' }}>
           slow<span style={{ color: 'var(--accent)' }}>desk</span> · v0.4 · made gently
         </div>
+
+        {/* Photo lightbox */}
+        {photoLightbox && avatarUrl && (
+          <div onClick={() => setPhotoLightbox(false)} style={{
+            position: 'fixed', inset: 0, zIndex: 4000,
+            background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(6px)',
+            display: 'grid', placeItems: 'center', cursor: 'zoom-out',
+          }}>
+            <img src={avatarUrl} alt="profile photo" style={{ maxWidth: '80vw', maxHeight: '80vh', borderRadius: 16, boxShadow: '0 32px 80px rgba(0,0,0,0.5)', objectFit: 'contain' }} />
+          </div>
+        )}
 
         <div style={{ height: 40 }} />
 

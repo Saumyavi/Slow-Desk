@@ -382,6 +382,16 @@ export default function Topbar({ title, subtitle, action }: TopbarProps) {
   const initial = user?.name?.[0]?.toUpperCase() ?? 'S';
   const unreadCount = notifications.filter(n => !n.readAt).length;
 
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(async ({ data: { user: u } }) => {
+      if (!u) return;
+      const { data } = await supabase.from('user_profiles').select('avatar_url').eq('id', u.id).single();
+      if (data?.avatar_url) setAvatarUrl(data.avatar_url);
+    });
+  }, []);
+
   return (
     <>
       <div className="topbar">
@@ -430,22 +440,31 @@ export default function Topbar({ title, subtitle, action }: TopbarProps) {
           <div
             className="avatar-me"
             onClick={() => { setMenuOpen(o => !o); setNotifOpen(false); }}
-            style={{ cursor: 'pointer', userSelect: 'none' }}
+            style={{ cursor: 'pointer', userSelect: 'none', overflow: avatarUrl ? 'hidden' : undefined, padding: avatarUrl ? 0 : undefined }}
             title={user?.name}
           >
-            {initial}
+            {avatarUrl
+              ? <img src={avatarUrl} alt={user?.name ?? ''} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+              : initial}
           </div>
           {menuOpen && (
             <div ref={menuRef} style={{
               position: 'absolute', top: 'calc(100% + 8px)', right: 0,
-              width: 210, background: 'var(--bg-elev)',
+              width: 220, background: 'var(--bg-elev)',
               border: '1px solid var(--line)', borderRadius: 12,
               boxShadow: '0 12px 32px rgba(0,0,0,0.15)',
               overflow: 'hidden', zIndex: 500,
             }}>
-              <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--line)' }}>
-                <div style={{ fontSize: 13, fontWeight: 600 }}>{user?.name}</div>
-                <div style={{ fontSize: 11, color: 'var(--ink-faint)', fontFamily: 'var(--font-mono)', marginTop: 2 }}>{user?.email}</div>
+              <div style={{ padding: '14px 14px 12px', borderBottom: '1px solid var(--line)', display: 'flex', alignItems: 'center', gap: 10 }}>
+                {avatarUrl ? (
+                  <img src={avatarUrl} alt={user?.name ?? ''} style={{ width: 42, height: 42, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, border: '2px solid var(--line)' }} />
+                ) : (
+                  <div style={{ width: 42, height: 42, borderRadius: '50%', background: 'var(--accent)', color: '#fff', display: 'grid', placeItems: 'center', fontSize: 18, fontWeight: 700, flexShrink: 0 }}>{initial}</div>
+                )}
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.name}</div>
+                  <div style={{ fontSize: 11, color: 'var(--ink-faint)', fontFamily: 'var(--font-mono)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.email}</div>
+                </div>
               </div>
               <button onClick={() => { setMenuOpen(false); router.push('/profile'); }} style={{
                 width: '100%', display: 'flex', alignItems: 'center', gap: 10,
