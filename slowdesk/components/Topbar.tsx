@@ -168,7 +168,7 @@ function SearchModal({ onClose }: { onClose: () => void }) {
           {filteredNotes.length > 0 && (
             <ResultGroup label="Notes">
               {filteredNotes.map(n => (
-                <ResultItem key={n.id} icon="notes" title={n.title} subtitle={n.preview.slice(0, 72)} onClick={() => navigate('/notes')} />
+                <ResultItem key={n.id} icon="notes" title={n.title} subtitle={n.preview.slice(0, 72)} onClick={() => navigate('/notes?noteId=' + n.id)} />
               ))}
             </ResultGroup>
           )}
