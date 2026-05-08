@@ -13,6 +13,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const { sidebar, confettiTrigger, setUserEmail, tourDone } = useApp();
+  const [tourPreview, setTourPreview] = useState(false);
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('tour') === '1') setTourPreview(true);
+  }, []);
+  useEffect(() => { if (tourDone) setTourPreview(false); }, [tourDone]);
   const router = useRouter();
   const pathname = usePathname();
 
@@ -71,7 +76,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <main className="main">{children}</main>
       <Confetti trigger={confettiTrigger} />
       <TweaksPanel />
-      {!tourDone && <OnboardingTour />}
+      {(!tourDone || tourPreview) && <OnboardingTour />}
     </div>
   );
 }

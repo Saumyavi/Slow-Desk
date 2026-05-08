@@ -1,7 +1,6 @@
 'use client';
 import { useState, useRef, useEffect } from 'react';
 import { gsap } from 'gsap';
-import { HABITS as SEED_HABITS } from '@/lib/data';
 import { createClient } from '@/lib/supabase/client';
 import * as db from '@/lib/supabase/db';
 import Topbar from '@/components/Topbar';
@@ -27,22 +26,6 @@ function toDateStr(d: Date): string {
 
 const TODAY = toDateStr(new Date());
 
-function seedHistory(streak: number, colorIdx: number): string[] {
-  const today = new Date();
-  const dates: string[] = [];
-  for (let i = 0; i < 30; i++) {
-    const d = new Date(today);
-    d.setDate(d.getDate() - i);
-    if (i < streak) {
-      dates.push(toDateStr(d));
-    } else {
-      const v = ((colorIdx * 7 + i * 13) % 17) / 17;
-      if (v > 0.45) dates.push(toDateStr(d));
-    }
-  }
-  return dates;
-}
-
 function computeStreak(historySet: Set<string>): number {
   const today = new Date();
   // If today isn't done yet, start counting from yesterday so the streak
@@ -65,17 +48,6 @@ function buildHeatmap(historySet: Set<string>): boolean[] {
     d.setDate(d.getDate() - (29 - i));
     return historySet.has(toDateStr(d));
   });
-}
-
-function initHabits(): HabitData[] {
-  return SEED_HABITS.map((h, i) => ({
-    id: h.id,
-    name: h.name,
-    emoji: h.emoji,
-    goal: h.goal,
-    color: ACCENT_PALETTE[i % ACCENT_PALETTE.length],
-    history: seedHistory(h.streak, i),
-  }));
 }
 
 /* ── Habit Modal ─────────────────────────────────────────── */
@@ -389,7 +361,7 @@ export default function HabitsPage() {
   const [habits,   setHabits]   = useState<HabitData[]>([]);
   const [modal,    setModal]    = useState<{ habit?: HabitData } | null>(null);
   const [loading,  setLoading]  = useState(true);
-  const [insights,        setInsights]        = useState<string[] | null>(null);
+  const [insights,        setInsights]        = useState<{ type: string; text: string }[] | null>(null);
   const [insightsLoading, setInsightsLoading] = useState(false);
   const [insightsExpanded, setInsightsExpanded] = useState(true);
   const headerRef = useRef<HTMLDivElement>(null);
@@ -406,17 +378,7 @@ export default function HabitsPage() {
       const habitsData = await db.getHabits(user.id);
       if (!mounted) return;
 
-      if (habitsData.length === 0) {
-        // Create initial habits if none exist
-        const initialHabits = initHabits();
-        for (const habit of initialHabits) {
-          await db.createHabit(user.id, habit);
-        }
-        const freshHabits = await db.getHabits(user.id);
-        if (mounted) setHabits(freshHabits);
-      } else {
-        setHabits(habitsData);
-      }
+      setHabits(habitsData);
 
       if (mounted) setLoading(false);
     });
@@ -491,6 +453,7 @@ export default function HabitsPage() {
       });
       const data = await res.json();
       setInsights(data.hasEnoughData ? (data.insights ?? []) : []);
+
     } catch {
       setInsights([]);
     } finally {
@@ -646,28 +609,29 @@ export default function HabitsPage() {
                 )}
 
                 {/* insight cards */}
-                {!insightsLoading && insights !== null && insights.length > 0 && insights.map((text, i) => (
-                  <div
-                    key={i}
-                    style={{
-                      padding: '12px 16px',
-                      borderRadius: 10,
-                      background: 'var(--bg-sunk)',
-                      borderLeft: '3px solid var(--accent)',
-                      display: 'flex', gap: 10, alignItems: 'flex-start',
-                    }}
-                  >
-                    <span style={{ fontSize: 15, flexShrink: 0, marginTop: 1 }}>
-                      {i === 0 ? '📊' : i === 1 ? '🔗' : '📈'}
-                    </span>
-                    <p style={{
-                      margin: 0, fontSize: 13, lineHeight: 1.65,
-                      color: 'var(--ink)', fontFamily: 'var(--font-sans)',
+                {!insightsLoading && insights !== null && insights.length > 0 && insights.map((insight, i) => {
+                  const cfg = insight.type === 'win'
+                    ? { emoji: '🏆', label: 'Win', color: '#7a9e7e', bg: 'rgba(122,158,126,0.08)', border: 'rgba(122,158,126,0.35)' }
+                    : insight.type === 'nudge'
+                    ? { emoji: '💡', label: 'Nudge', color: '#c9943a', bg: 'rgba(201,148,58,0.08)', border: 'rgba(201,148,58,0.35)' }
+                    : { emoji: '⚠️', label: 'Pattern', color: '#c1623f', bg: 'rgba(193,98,63,0.08)', border: 'rgba(193,98,63,0.35)' };
+                  return (
+                    <div key={i} style={{
+                      padding: '12px 16px', borderRadius: 10,
+                      background: cfg.bg, border: `1px solid ${cfg.border}`,
+                      borderLeft: `3px solid ${cfg.color}`,
+                      display: 'flex', gap: 12, alignItems: 'flex-start',
                     }}>
-                      {text}
-                    </p>
-                  </div>
-                ))}
+                      <span style={{ fontSize: 16, flexShrink: 0, marginTop: 1 }}>{cfg.emoji}</span>
+                      <div style={{ flex: 1 }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: cfg.color, fontFamily: 'var(--font-mono)', display: 'block', marginBottom: 4 }}>{cfg.label}</span>
+                        <p style={{ margin: 0, fontSize: 13, lineHeight: 1.65, color: 'var(--ink)', fontFamily: 'var(--font-sans)' }}>
+                          {insight.text}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

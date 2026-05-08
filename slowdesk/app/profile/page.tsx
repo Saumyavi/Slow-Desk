@@ -386,7 +386,7 @@ export default function ProfilePage() {
               {/* Upload photo button */}
               <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }}
                 onChange={e => { const f = e.target.files?.[0]; if (f) uploadAvatar(f); e.target.value = ''; }} />
-              <button title={avatarUploading ? 'Uploading…' : 'Upload photo / change emoji'} onClick={() => {
+              <button title={avatarUploading ? 'Uploading…' : 'Upload photo'} onClick={() => {
                 if (avatarUploading) return;
                 fileInputRef.current?.click();
               }} style={{
@@ -404,14 +404,6 @@ export default function ProfilePage() {
                   </svg>
                 )}
               </button>
-              {/* Emoji picker toggle */}
-              <button title="Choose emoji avatar" onClick={() => setShowAvatarPicker(v => !v)} style={{
-                position: 'absolute', bottom: 40, right: -2,
-                width: 28, height: 28, borderRadius: '50%',
-                background: 'var(--bg-elev)', border: '1px solid var(--line)',
-                display: 'grid', placeItems: 'center', color: 'var(--ink-soft)',
-                boxShadow: 'var(--shadow-sm)', cursor: 'pointer', fontSize: 14,
-              }}>😊</button>
             </div>
 
             {/* Name block */}
@@ -473,30 +465,6 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {/* Avatar picker */}
-        {showAvatarPicker && (
-          <div ref={pickerRef} style={{
-            background: 'var(--bg-elev)', border: '1px solid var(--line)',
-            borderRadius: 12, padding: '14px 16px', marginBottom: 24,
-            boxShadow: '0 8px 24px rgba(0,0,0,0.08)',
-          }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink-faint)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'var(--font-mono)' }}>Choose avatar</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: 4 }}>
-              {AVATAR_EMOJIS.map(e => (
-                <button key={e} onClick={() => { setAvatar(e); setShowAvatarPicker(false); }} style={{
-                  fontSize: 22, padding: 6, borderRadius: 8, cursor: 'pointer',
-                  border: '1.5px solid',
-                  borderColor: avatar === e ? 'var(--accent)' : 'transparent',
-                  background: avatar === e ? 'var(--accent-soft)' : 'transparent',
-                  transition: 'all 0.12s',
-                }}
-                  onMouseEnter={e2 => { if (e !== avatar) e2.currentTarget.style.background = 'var(--bg-sunk)'; }}
-                  onMouseLeave={e2 => { e2.currentTarget.style.background = e === avatar ? 'var(--accent-soft)' : 'transparent'; }}
-                >{e}</button>
-              ))}
-            </div>
-          </div>
-        )}
 
         {/* ── 01 Personal info ──────────────────────────────── */}
         <div className="card" style={{ borderRadius: 18, padding: 28, marginBottom: 22 }}>

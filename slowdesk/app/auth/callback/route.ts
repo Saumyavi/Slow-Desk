@@ -19,9 +19,8 @@ export async function GET(request: Request) {
           data.user.user_metadata?.name || data.user.email?.split('@')[0] || 'User',
           data.user.email || ''
         );
-      } catch (err) {
+      } catch {
         // Profile might already exist, that's okay
-        console.log('Profile creation skipped:', err);
       }
 
       return NextResponse.redirect(`${origin}${next}`);

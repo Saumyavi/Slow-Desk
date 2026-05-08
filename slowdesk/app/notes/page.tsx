@@ -1,7 +1,7 @@
 'use client';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { gsap } from 'gsap';
-import { INITIAL_NOTES, TONE_COLORS, Note, Task, relativeTime } from '@/lib/data';
+import { TONE_COLORS, Note, Task, relativeTime } from '@/lib/data';
 import { useApp } from '@/lib/store';
 import { createClient } from '@/lib/supabase/client';
 import * as db from '@/lib/supabase/db';
@@ -134,26 +134,9 @@ export default function NotesPage() {
         ? new URLSearchParams(window.location.search).get('noteId') : null;
 
       if (notesData.length === 0) {
-        // Create initial notes if none exist
-        for (const note of INITIAL_NOTES) {
-          await db.createNote(user.id, note.title, note.preview, note.tone);
-        }
-        const freshNotes = await db.getNotes(user.id);
-        if (!mounted) return;
-
-        setNotes(freshNotes);
-        const targetId = noteIdParam && freshNotes.find(n => n.id === noteIdParam)
-          ? noteIdParam : (freshNotes[0]?.id ?? '');
-        setActiveId(targetId);
+        setNotes([]);
+        setActiveId('');
         if (noteIdParam) window.history.replaceState({}, '', window.location.pathname);
-
-        // Load content for each note
-        const contentMap: Record<string, string> = {};
-        for (const n of freshNotes) {
-          const fullNote = await db.getNote(user.id, n.id);
-          if (fullNote) contentMap[n.id] = fullNote.content || '';
-        }
-        if (mounted) setContent(contentMap);
       } else {
         setNotes(notesData);
         const targetId = noteIdParam && notesData.find(n => n.id === noteIdParam)
