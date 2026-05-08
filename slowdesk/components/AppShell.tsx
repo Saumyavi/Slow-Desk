@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useApp } from '@/lib/store';
 import { createClient } from '@/lib/supabase/client';
@@ -14,10 +14,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const { sidebar, confettiTrigger, setUserEmail, tourDone } = useApp();
   const [tourPreview, setTourPreview] = useState(false);
+  const tourDoneMounted = useRef(false);
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get('tour') === '1') setTourPreview(true);
   }, []);
-  useEffect(() => { if (tourDone) setTourPreview(false); }, [tourDone]);
+  useEffect(() => {
+    if (!tourDoneMounted.current) { tourDoneMounted.current = true; return; }
+    if (tourDone) setTourPreview(false);
+  }, [tourDone]);
   const router = useRouter();
   const pathname = usePathname();
 
