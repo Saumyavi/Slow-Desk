@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import Providers from '@/components/Providers';
 import AppShell from '@/components/AppShell';
+import ServiceWorkerRegistration from '@/components/ServiceWorkerRegistration';
 
 const APP_URL = 'https://slowdesk.app';
 
@@ -52,6 +53,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Providers>
           <AppShell>{children}</AppShell>
         </Providers>
+        <ServiceWorkerRegistration />
       </body>
     </html>
   );
