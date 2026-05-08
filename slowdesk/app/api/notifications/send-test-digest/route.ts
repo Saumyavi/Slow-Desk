@@ -15,14 +15,18 @@ export async function POST(_req: NextRequest) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
-    const { data: profile } = await supabase
+    const { data: profile, error: profileError } = await supabase
       .from('user_profiles')
       .select('notification_email_enabled, notification_whatsapp_enabled, notification_phone')
       .eq('id', user.id)
       .single();
 
+    if (profileError) {
+      return NextResponse.json({ error: `DB error: ${profileError.message}` }, { status: 500 });
+    }
+
     if (!profile) {
-      return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+      return NextResponse.json({ error: 'Profile not found — make sure your account is set up.' }, { status: 404 });
     }
 
     if (!profile.notification_email_enabled && !profile.notification_whatsapp_enabled) {
@@ -53,20 +57,34 @@ export async function POST(_req: NextRequest) {
 
     const sent: string[] = [];
     const errors: string[] = [];
+    const debug: Record<string, unknown> = {
+      emailEnabled: profile.notification_email_enabled,
+      waEnabled: profile.notification_whatsapp_enabled,
+      toEmail: user.email,
+      toPhone: profile.notification_phone || null,
+    };
 
     if (profile.notification_email_enabled && user.email) {
       try {
         const resend = new Resend(process.env.RESEND_API_KEY);
         const fromAddr = process.env.RESEND_FROM_EMAIL || 'SlowDesk <onboarding@resend.dev>';
-        await resend.emails.send({
+        const result = await resend.emails.send({
           from: fromAddr,
           to: user.email,
           subject: `☕ Test morning ritual — ${dateLabel}`,
           html: getMorningDigestEmail(digestData),
         });
-        sent.push('email');
+        debug.resendId = result.data?.id;
+        debug.resendError = result.error;
+        if (result.error) {
+          errors.push(`Email: ${result.error.message}`);
+        } else {
+          sent.push('email');
+        }
       } catch (err) {
-        errors.push(`Email: ${err instanceof Error ? err.message : String(err)}`);
+        const msg = err instanceof Error ? err.message : String(err);
+        errors.push(`Email: ${msg}`);
+        debug.emailException = msg;
       }
     }
 
@@ -80,7 +98,9 @@ export async function POST(_req: NextRequest) {
         );
         sent.push('whatsapp');
       } catch (err) {
-        errors.push(`WhatsApp: ${err instanceof Error ? err.message : String(err)}`);
+        const msg = err instanceof Error ? err.message : String(err);
+        errors.push(`WhatsApp: ${msg}`);
+        debug.waException = msg;
       }
     }
 
@@ -88,6 +108,7 @@ export async function POST(_req: NextRequest) {
       success: sent.length > 0,
       sent,
       ...(errors.length > 0 && { errors }),
+      debug,
     });
   } catch (error) {
     console.error('Test digest error:', error);
