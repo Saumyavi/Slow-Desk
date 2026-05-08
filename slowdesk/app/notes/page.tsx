@@ -1,7 +1,7 @@
 'use client';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { gsap } from 'gsap';
-import { INITIAL_NOTES, TONE_COLORS, Note, Task, relativeTime } from '@/lib/data';
+import { TONE_COLORS, Note, Task, relativeTime } from '@/lib/data';
 import { useApp } from '@/lib/store';
 import { createClient } from '@/lib/supabase/client';
 import * as db from '@/lib/supabase/db';
@@ -100,7 +100,8 @@ export default function NotesPage() {
   const supabase = createClient();
   const { tasks, setTasks, projects, setProjects, fireConfetti, user } = useApp();
   const email = user?.email ?? 'guest';
-  const gratKey = `sd:${email}:gratitude`;
+  const todayDate = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD in local timezone
+  const gratKey = `sd:${email}:gratitude:${todayDate}`;
 
   const [userId, setUserId] = useState<string | null>(null);
   const [notes, setNotes] = useState<Note[]>([]);
@@ -129,27 +130,19 @@ export default function NotesPage() {
       const notesData = await db.getNotes(user.id);
       if (!mounted) return;
 
+      const noteIdParam = typeof window !== 'undefined'
+        ? new URLSearchParams(window.location.search).get('noteId') : null;
+
       if (notesData.length === 0) {
-        // Create initial notes if none exist
-        for (const note of INITIAL_NOTES) {
-          await db.createNote(user.id, note.title, note.preview, note.tone);
-        }
-        const freshNotes = await db.getNotes(user.id);
-        if (!mounted) return;
-
-        setNotes(freshNotes);
-        setActiveId(freshNotes[0]?.id ?? '');
-
-        // Load content for each note
-        const contentMap: Record<string, string> = {};
-        for (const n of freshNotes) {
-          const fullNote = await db.getNote(user.id, n.id);
-          if (fullNote) contentMap[n.id] = fullNote.content || '';
-        }
-        if (mounted) setContent(contentMap);
+        setNotes([]);
+        setActiveId('');
+        if (noteIdParam) window.history.replaceState({}, '', window.location.pathname);
       } else {
         setNotes(notesData);
-        setActiveId(notesData[0]?.id ?? '');
+        const targetId = noteIdParam && notesData.find(n => n.id === noteIdParam)
+          ? noteIdParam : (notesData[0]?.id ?? '');
+        setActiveId(targetId);
+        if (noteIdParam) window.history.replaceState({}, '', window.location.pathname);
 
         // Load content for each note
         const contentMap: Record<string, string> = {};
@@ -292,11 +285,12 @@ export default function NotesPage() {
   const [aiQuestion, setAiQuestion] = useState('');
   const [aiResponse, setAiResponse] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
-  const [extractedTasks,  setExtractedTasks]  = useState<string[]>([]);
-  const [addedTasks,      setAddedTasks]      = useState<Set<string>>(new Set());
-  const [projectName,     setProjectName]     = useState('');
-  const [creatingProject, setCreatingProject] = useState(false);
-  const [projectCreated,  setProjectCreated]  = useState(false);
+  const [extractedTasks,    setExtractedTasks]    = useState<string[]>([]);
+  const [addedTasks,        setAddedTasks]        = useState<Set<string>>(new Set());
+  const [selectedForProject, setSelectedForProject] = useState<Set<string>>(new Set());
+  const [projectName,       setProjectName]       = useState('');
+  const [creatingProject,   setCreatingProject]   = useState(false);
+  const [projectCreated,    setProjectCreated]    = useState(false);
 
   const runAI = async (action: AiAction, question?: string) => {
     setAiAction(action);
@@ -342,6 +336,7 @@ export default function NotesPage() {
           .map(l => l.replace(/^-\s+/, '').trim())
           .filter(Boolean);
         setExtractedTasks(tasks);
+        setSelectedForProject(new Set(tasks));
         setProjectName(activeNote?.title || '');
         setProjectCreated(false);
       }
@@ -358,7 +353,7 @@ export default function NotesPage() {
   };
 
   const createProjectWithTasks = async () => {
-    if (!userId || !projectName.trim() || extractedTasks.length === 0) return;
+    if (!userId || !projectName.trim() || selectedForProject.size === 0) return;
     setCreatingProject(true);
     try {
       const name = projectName.trim();
@@ -375,10 +370,11 @@ export default function NotesPage() {
         due: created.due || 'Ongoing',
         desc: created.description || '',
       }, ...prev]);
-      for (const title of extractedTasks) {
+      const tasksToAdd = extractedTasks.filter(t => selectedForProject.has(t));
+      for (const title of tasksToAdd) {
         await onAddTask({ title, done: false, priority: 'medium', project: name, tone: 'terra', attach: 0, due: 'someday', time: '' });
       }
-      setAddedTasks(new Set(extractedTasks));
+      setAddedTasks(new Set(tasksToAdd));
       setProjectCreated(true);
     } catch (err) { console.error(err); }
     setCreatingProject(false);
@@ -748,8 +744,20 @@ export default function NotesPage() {
                           <div key={i} style={{
                             display: 'flex', alignItems: 'center', gap: 10,
                             padding: '7px 10px', borderRadius: 8,
-                            background: 'var(--bg-sunk)', border: '1px solid var(--line)',
+                            background: 'var(--bg-sunk)', border: `1px solid ${selectedForProject.has(task) ? 'var(--accent)' : 'var(--line)'}`,
+                            transition: 'border-color 0.13s',
                           }}>
+                            <button
+                              onClick={() => setSelectedForProject(prev => { const n = new Set(prev); n.has(task) ? n.delete(task) : n.add(task); return n; })}
+                              style={{
+                                width: 16, height: 16, borderRadius: 3, flexShrink: 0,
+                                border: selectedForProject.has(task) ? 'none' : '1.5px solid var(--ink-faint)',
+                                background: selectedForProject.has(task) ? 'var(--accent)' : 'transparent',
+                                display: 'grid', placeItems: 'center', cursor: 'pointer', transition: 'all 0.15s',
+                              }}
+                            >
+                              {selectedForProject.has(task) && <Icon name="check" size={8} style={{ color: '#fff' }} />}
+                            </button>
                             <span style={{ flex: 1, fontSize: 13, color: 'var(--ink)', lineHeight: 1.4 }}>{task}</span>
                             {addedTasks.has(task) ? (
                               <span style={{
@@ -785,7 +793,7 @@ export default function NotesPage() {
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                               <Icon name="check" size={13} />
                               <span style={{ fontSize: 12, color: '#7a9e7e', fontWeight: 600 }}>
-                                Project created with all {extractedTasks.length} tasks!
+                                Project created with {addedTasks.size} task{addedTasks.size !== 1 ? 's' : ''}!
                               </span>
                             </div>
                           ) : (
@@ -794,7 +802,9 @@ export default function NotesPage() {
                                 Group all as a project?
                               </div>
                               <div style={{ fontSize: 11, color: 'var(--ink-faint)', marginBottom: 10, lineHeight: 1.5 }}>
-                                Create a project and add all {extractedTasks.length} extracted tasks under it.
+                                {selectedForProject.size === 0
+                                  ? 'Select at least one task above to create a project.'
+                                  : `Create a project and add ${selectedForProject.size} selected task${selectedForProject.size !== 1 ? 's' : ''} under it.`}
                               </div>
                               <div style={{ display: 'flex', gap: 8 }}>
                                 <input
@@ -812,7 +822,7 @@ export default function NotesPage() {
                                 />
                                 <button
                                   onClick={createProjectWithTasks}
-                                  disabled={creatingProject || !projectName.trim()}
+                                  disabled={creatingProject || !projectName.trim() || selectedForProject.size === 0}
                                   style={{
                                     padding: '6px 14px', borderRadius: 7, border: 'none',
                                     background: 'linear-gradient(135deg, #c1623f 0%, #c9943a 100%)',

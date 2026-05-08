@@ -308,7 +308,7 @@ export default function AuthScreen({ onClose }: { onClose?: () => void } = {}) {
           <div ref={formRef} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             {tab === 'signup' && (
               <div data-field>
-                <Field label="Full name" type="text" value={name} onChange={setName} placeholder="Saumya Vishnoi" error={errors.name} />
+                <Field label="Full name" type="text" value={name} onChange={setName} placeholder="Your name" error={errors.name} />
               </div>
             )}
             <div data-field>

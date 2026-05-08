@@ -1,5 +1,5 @@
 'use client';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { gsap } from 'gsap';
 import { createClient } from '@/lib/supabase/client';
 import { useApp, Accent } from '@/lib/store';
@@ -57,9 +57,10 @@ function daysSince(iso?: string) {
 }
 
 
-function Input({ value, onChange, placeholder, readOnly }: {
+function Input({ value, onChange, placeholder, readOnly, style: extraStyle }: {
   value: string; onChange?: (v: string) => void;
   placeholder?: string; readOnly?: boolean;
+  style?: React.CSSProperties;
 }) {
   return (
     <input
@@ -75,6 +76,7 @@ function Input({ value, onChange, placeholder, readOnly }: {
         outline: 'none', fontFamily: 'var(--font-body)',
         boxSizing: 'border-box', transition: 'border-color 0.15s',
         cursor: readOnly ? 'default' : 'text',
+        ...extraStyle,
       }}
       onFocus={e => { if (!readOnly) e.target.style.borderColor = 'var(--accent)'; }}
       onBlur={e => { e.target.style.borderColor = 'var(--line)'; }}
@@ -128,6 +130,10 @@ export default function ProfilePage() {
   const [saved,    setSaved]    = useState(false);
   const [signOutConfirm, setSignOutConfirm] = useState(false);
 
+  const [avatarUrl,       setAvatarUrl]       = useState<string | null>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [photoLightbox,   setPhotoLightbox]   = useState(false);
+
   // Morning ritual state
   const [notifEmailEnabled,   setNotifEmailEnabled]   = useState(false);
   const [notifWaEnabled,      setNotifWaEnabled]      = useState(false);
@@ -143,6 +149,7 @@ export default function ProfilePage() {
 
   const pageRef    = useRef<HTMLDivElement>(null);
   const pickerRef  = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const triggerDownload = (blob: Blob, filename: string) => {
     const url = URL.createObjectURL(blob);
@@ -234,14 +241,14 @@ export default function ProfilePage() {
     );
   }, []);
 
-  // Load notification preferences
+  // Load notification preferences and avatar_url
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getUser().then(async ({ data }) => {
       if (!data.user) return;
       const { data: profile } = await supabase
         .from('user_profiles')
-        .select('notification_email_enabled, notification_whatsapp_enabled, notification_phone, notification_time, notification_timezone')
+        .select('notification_email_enabled, notification_whatsapp_enabled, notification_phone, notification_time, notification_timezone, avatar_url')
         .eq('id', data.user.id)
         .single();
       if (!profile) return;
@@ -250,6 +257,7 @@ export default function ProfilePage() {
       setNotifPhone(profile.notification_phone ?? '');
       setNotifTime(profile.notification_time ?? '08:00');
       setNotifTimezone(profile.notification_timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'UTC');
+      if (profile.avatar_url) setAvatarUrl(profile.avatar_url);
     });
   }, []);
 
@@ -282,6 +290,25 @@ export default function ProfilePage() {
       );
     }
   }, [showAvatarPicker]);
+
+  const uploadAvatar = useCallback(async (file: File) => {
+    setAvatarUploading(true);
+    try {
+      const supabase = createClient();
+      const { data: { user: u } } = await supabase.auth.getUser();
+      if (!u) return;
+      const ext = file.name.split('.').pop() ?? 'jpg';
+      const path = `${u.id}/avatar.${ext}`;
+      const { error: upErr } = await supabase.storage.from('avatars').upload(path, file, { upsert: true, contentType: file.type });
+      if (upErr) { console.error(upErr); return; }
+      const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path);
+      const url = `${publicUrl}?t=${Date.now()}`;
+      setAvatarUrl(url);
+      await supabase.from('user_profiles').update({ avatar_url: url, updated_at: new Date().toISOString() }).eq('id', u.id);
+    } finally {
+      setAvatarUploading(false);
+    }
+  }, []);
 
   const save = (e: React.MouseEvent) => {
     updateUser({ name, role, location, bio, avatar, status });
@@ -336,10 +363,17 @@ export default function ProfilePage() {
                   width: '100%', height: '100%', borderRadius: '50%',
                   background: 'linear-gradient(135deg, var(--terracotta), var(--butter))',
                   display: 'grid', placeItems: 'center', color: 'white',
-                  fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 52,
-                  border: '3px solid var(--bg-elev)',
+                  fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: avatarUrl ? undefined : (avatar && avatar !== (name[0] || 's').toLowerCase() ? 44 : 52),
+                  border: '3px solid var(--bg-elev)', overflow: 'hidden',
+                  animation: avatarUrl ? 'spin-slow 32s linear reverse infinite' : undefined,
                 }}>
-                  {(name[0] || 's').toLowerCase()}
+                  {avatarUrl ? (
+                    <img src={avatarUrl} alt="avatar" onClick={() => setPhotoLightbox(true)} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%', display: 'block', cursor: 'zoom-in' }} />
+                  ) : avatar && !AVATAR_EMOJIS.every(e => e !== avatar) ? (
+                    <span style={{ fontSize: 44, lineHeight: 1 }}>{avatar}</span>
+                  ) : (
+                    (name[0] || 's').toLowerCase()
+                  )}
                 </div>
               </div>
               {/* Status dot */}
@@ -349,17 +383,26 @@ export default function ProfilePage() {
                 background: 'var(--bg-elev)', border: '2.5px solid var(--bg-elev)',
                 boxShadow: 'var(--shadow)', display: 'grid', placeItems: 'center', fontSize: 18,
               }}>{status}</div>
-              {/* Edit button */}
-              <button title="Change avatar" onClick={() => setShowAvatarPicker(v => !v)} style={{
+              {/* Upload photo button */}
+              <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }}
+                onChange={e => { const f = e.target.files?.[0]; if (f) uploadAvatar(f); e.target.value = ''; }} />
+              <button title={avatarUploading ? 'Uploading…' : 'Upload photo'} onClick={() => {
+                if (avatarUploading) return;
+                fileInputRef.current?.click();
+              }} style={{
                 position: 'absolute', top: -2, right: -2,
                 width: 28, height: 28, borderRadius: '50%',
-                background: 'var(--bg-elev)', border: '1px solid var(--line)',
+                background: avatarUploading ? 'var(--accent-soft)' : 'var(--bg-elev)', border: '1px solid var(--line)',
                 display: 'grid', placeItems: 'center', color: 'var(--ink-soft)',
-                boxShadow: 'var(--shadow-sm)', cursor: 'pointer',
+                boxShadow: 'var(--shadow-sm)', cursor: avatarUploading ? 'default' : 'pointer',
               }}>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4z"/>
-                </svg>
+                {avatarUploading ? (
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 1 1-18 0"/></svg>
+                ) : (
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+                  </svg>
+                )}
               </button>
             </div>
 
@@ -422,30 +465,6 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {/* Avatar picker */}
-        {showAvatarPicker && (
-          <div ref={pickerRef} style={{
-            background: 'var(--bg-elev)', border: '1px solid var(--line)',
-            borderRadius: 12, padding: '14px 16px', marginBottom: 24,
-            boxShadow: '0 8px 24px rgba(0,0,0,0.08)',
-          }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink-faint)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'var(--font-mono)' }}>Choose avatar</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: 4 }}>
-              {AVATAR_EMOJIS.map(e => (
-                <button key={e} onClick={() => { setAvatar(e); setShowAvatarPicker(false); }} style={{
-                  fontSize: 22, padding: 6, borderRadius: 8, cursor: 'pointer',
-                  border: '1.5px solid',
-                  borderColor: avatar === e ? 'var(--accent)' : 'transparent',
-                  background: avatar === e ? 'var(--accent-soft)' : 'transparent',
-                  transition: 'all 0.12s',
-                }}
-                  onMouseEnter={e2 => { if (e !== avatar) e2.currentTarget.style.background = 'var(--bg-sunk)'; }}
-                  onMouseLeave={e2 => { e2.currentTarget.style.background = e === avatar ? 'var(--accent-soft)' : 'transparent'; }}
-                >{e}</button>
-              ))}
-            </div>
-          </div>
-        )}
 
         {/* ── 01 Personal info ──────────────────────────────── */}
         <div className="card" style={{ borderRadius: 18, padding: 28, marginBottom: 22 }}>
@@ -484,7 +503,7 @@ export default function ProfilePage() {
             <div>
               <label style={{ fontFamily: 'var(--font-display)', fontSize: 15, fontStyle: 'italic', color: 'var(--ink-soft)', marginBottom: 6, display: 'block' }}>Where you are</label>
               <div style={{ position: 'relative' }}>
-                <Input value={location} onChange={setLocation} placeholder="a city, a forest, a rooftop" />
+                <Input value={location} onChange={setLocation} placeholder="a city, a forest, a rooftop" style={{ paddingLeft: 36 }} />
                 <svg style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: 'var(--ink-faint)', pointerEvents: 'none' }} width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
                 </svg>
@@ -824,6 +843,14 @@ export default function ProfilePage() {
             </div>
           </div>
 
+          {/* Email notice */}
+          {notifEmailEnabled && (
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '11px 14px', borderRadius: 10, background: 'color-mix(in oklch, var(--butter) 12%, var(--bg))', border: '1px solid color-mix(in oklch, var(--butter) 40%, var(--line))', marginBottom: 14, fontSize: 12.5, color: 'var(--ink-soft)', lineHeight: 1.5 }}>
+              <span style={{ fontSize: 16, flexShrink: 0 }}>ℹ</span>
+              <span>Email digest sends to <strong style={{ color: 'var(--ink)' }}>{user?.email}</strong>. On the free Resend tier, delivery only works to verified addresses. If you&apos;re not receiving mails, confirm your address is verified in your Resend dashboard or upgrade to a custom sending domain.</span>
+            </div>
+          )}
+
           {/* Delivery info */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', borderRadius: 12, background: 'var(--bg-sunk)', border: '1px solid var(--line-soft)', marginBottom: 22 }}>
             <span style={{ width: 42, height: 42, borderRadius: 10, background: 'linear-gradient(135deg, var(--butter-soft), var(--terracotta-soft))', display: 'grid', placeItems: 'center', flexShrink: 0, fontSize: 20 }}>☀</span>
@@ -976,6 +1003,17 @@ export default function ProfilePage() {
         <div style={{ textAlign: 'center', marginTop: 36, paddingTop: 24, borderTop: '1px dashed var(--line)', fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-faint)', letterSpacing: '0.16em', textTransform: 'uppercase' }}>
           slow<span style={{ color: 'var(--accent)' }}>desk</span> · v0.4 · made gently
         </div>
+
+        {/* Photo lightbox */}
+        {photoLightbox && avatarUrl && (
+          <div onClick={() => setPhotoLightbox(false)} style={{
+            position: 'fixed', inset: 0, zIndex: 4000,
+            background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(6px)',
+            display: 'grid', placeItems: 'center', cursor: 'zoom-out',
+          }}>
+            <img src={avatarUrl} alt="profile photo" style={{ maxWidth: '80vw', maxHeight: '80vh', borderRadius: 16, boxShadow: '0 32px 80px rgba(0,0,0,0.5)', objectFit: 'contain' }} />
+          </div>
+        )}
 
         <div style={{ height: 40 }} />
 

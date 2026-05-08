@@ -198,45 +198,6 @@ export const QUOTES = [
   "The secret of getting ahead is getting started.",
 ];
 
-export const INITIAL_TASKS: Task[] = [
-  { id: 'seed-t1', title: 'Review project brief and set milestones', done: true,  project: 'Work',    tone: 'butter', attach: 2, due: 'today',     time: '9:00 AM',  priority: 'high'   },
-  { id: 'seed-t2', title: 'Morning run — 5K',                         done: true,  project: 'Health',  tone: 'sage',   attach: 0, due: 'today',     time: '7:00 AM',  priority: 'medium' },
-  { id: 'seed-t3', title: 'Design system color audit',                 done: false, project: 'Work',    tone: 'butter', attach: 1, due: 'today',     time: '2:00 PM',  priority: 'high'   },
-  { id: 'seed-t4', title: 'Read two chapters of current book',         done: false, project: 'Learning',tone: 'sky',    attach: 0, due: 'today',     time: '8:00 PM',  priority: 'low'    },
-  { id: 'seed-t5', title: 'Weekly team sync — prepare talking points', done: false, project: 'Work',    tone: 'butter', attach: 0, due: 'tomorrow',  time: '10:00 AM', priority: 'high'   },
-  { id: 'seed-t6', title: 'Update portfolio with recent case studies', done: false, project: 'Website', tone: 'terra',  attach: 3, due: 'tomorrow',  time: '—',        priority: 'medium' },
-  { id: 'seed-t7', title: 'Meal prep for the week',                    done: false, project: 'Health',  tone: 'sage',   attach: 0, due: 'this week', time: '—',        priority: 'medium' },
-  { id: 'seed-t8', title: 'Learn TypeScript generics',                 done: false, project: 'Learning',tone: 'sky',    attach: 0, due: 'this week', time: '—',        priority: 'low'    },
-  { id: 'seed-t9', title: 'Write monthly reflection journal entry',    done: false, project: '',        tone: 'plum',   attach: 0, due: 'this week', time: '—',        priority: 'low'    },
-];
-
-export const INITIAL_PROJECTS: ProjectData[] = [
-  { id: 'seed-p1', name: 'Work',     short: 'WK', tone: 'butter', due: 'Ongoing',    desc: 'Day-to-day work tasks, meetings, and deliverables.' },
-  { id: 'seed-p2', name: 'Health',   short: 'HL', tone: 'sage',   due: 'Ongoing',    desc: 'Fitness goals, nutrition, sleep, and wellbeing habits.' },
-  { id: 'seed-p3', name: 'Website',  short: 'WB', tone: 'terra',  due: 'End of month', desc: 'Personal portfolio redesign and content updates.' },
-  { id: 'seed-p4', name: 'Learning', short: 'LN', tone: 'sky',    due: 'Ongoing',    desc: 'Books, courses, skills, and things worth knowing.' },
-];
-
-export const INITIAL_NOTES: Note[] = (() => {
-  const now = Date.now();
-  return [
-    { id: 'seed-n1', title: 'Project ideas',     updatedAt: new Date(now - 2 * 3600000).toISOString(),       updated: '2 hours ago',  tone: 'terra', preview: 'A running list of side project ideas worth exploring. Start small, iterate fast. Think about problems you actually have...' },
-    { id: 'seed-n2', title: 'Reading notes',     updatedAt: new Date(now - 86400000).toISOString(),           updated: 'yesterday',    tone: 'sky',   preview: 'Key takeaways from recent reading. Atomic Habits — systems beat goals. Focus on the 1% improvements...' },
-    { id: 'seed-n3', title: 'Weekly reflection', updatedAt: new Date(now - 3 * 86400000).toISOString(),       updated: '3 days ago',   tone: 'sage',  preview: 'What went well this week: shipped the auth feature, consistent morning runs, good sleep schedule...' },
-  ];
-})();
-
-export const INITIAL_EVENTS: CalEvent[] = (() => {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = now.getMonth();
-  return [
-    { id: 'seed-e1', title: 'Team standup',       day: now.getDate(),     month: m, year: y, time: '10:00 AM', endTime: '10:30 AM', color: '#c9943a', note: 'Daily sync' },
-    { id: 'seed-e2', title: 'Design review',       day: now.getDate() + 1, month: m, year: y, time: '2:00 PM',  endTime: '3:00 PM',  color: '#c1623f', note: '' },
-    { id: 'seed-e3', title: 'Portfolio deadline',  day: now.getDate() + 5, month: m, year: y, time: '5:00 PM',  endTime: '6:00 PM',  color: '#8b5c75', note: 'Submit case studies' },
-    { id: 'seed-e4', title: 'Gym session',         day: now.getDate() + 2, month: m, year: y, time: '7:00 AM',  endTime: '8:00 AM',  color: '#7a9e7e', note: '' },
-  ];
-})();
 
 export const PROJECTS: Project[] = [];
 export const HABITS: Habit[] = [];

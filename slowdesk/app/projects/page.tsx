@@ -224,8 +224,8 @@ function ProjectCard({ project, projectTasks, index, onEdit }: {
         <div style={{
           width: 44, height: 44, borderRadius: 12, flexShrink: 0,
           background: color + '22', display: 'grid', placeItems: 'center',
-          color, fontSize: 18, fontWeight: 700, fontFamily: 'var(--font-display)', fontStyle: 'italic',
-        }}>{project.short[0]}</div>
+          color, fontSize: 14, fontWeight: 700, fontFamily: 'var(--font-display)', fontStyle: 'italic', letterSpacing: '0.03em',
+        }}>{project.short}</div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 3 }}>{project.name}</div>
           <div style={{ fontSize: 12, color: 'var(--ink-faint)', lineHeight: 1.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -442,7 +442,10 @@ export default function ProjectsPage() {
                 const prog = computeProgress(getProjectTasks(p.name));
                 return (
                   <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <div style={{ width: 80, fontSize: 11, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 0 }}>{p.short}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, width: 150, flexShrink: 0 }}>
+                      <div style={{ width: 8, height: 8, borderRadius: 2, background: TONE_COLORS[p.tone], flexShrink: 0 }} />
+                      <span style={{ fontSize: 12, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
+                    </div>
                     <div className="bar" style={{ flex: 1 }}>
                       <i style={{ display: 'block', height: '100%', width: `${prog}%`, background: TONE_COLORS[p.tone], borderRadius: 2, transition: 'width 0.45s ease' }} />
                     </div>

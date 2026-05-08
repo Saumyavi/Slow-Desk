@@ -143,12 +143,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setSidebarState(prefs.sidebar || 'wide');
         setDensityState(prefs.density || 'cozy');
         setDashVariantState(prefs.dash_variant || 'A');
-        setTourDoneState(prefs.tour_done || false);
+        setTourDoneState(prefs.tour_done ?? false);
 
         applyTheme(prefs.theme || 'light');
         applyAccent(prefs.accent || 'terracotta');
         document.body.dataset.density = prefs.density || 'cozy';
         document.body.dataset.bgPattern = prefs.bg_pattern || 'none';
+      } else {
+        // No preferences row = brand new user, show the intro
+        setTourDoneState(false);
       }
 
       // Load all data from Supabase

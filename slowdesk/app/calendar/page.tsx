@@ -319,7 +319,7 @@ export default function CalendarPage() {
         subtitle={`Month view · ${MONTHS[month]} ${year}`}
         action={
           <button className="btn btn-primary" onClick={() => setModal({ day: selected ?? todayDate.getDate() })}>
-            <Icon name="plus" size={14} /> New task
+            <Icon name="plus" size={14} /> New event
           </button>
         }
       />
