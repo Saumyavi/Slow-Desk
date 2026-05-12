@@ -44,10 +44,12 @@ export default function Sidebar() {
   return (
     <>
     <aside className={`sidebar ${isIcon ? 'icon' : ''}`} ref={navRef}>
-      <div className="brand">
-        <div className="brand-mark">s</div>
-        {!isIcon && <div className="brand-name">slow<em>desk</em></div>}
-      </div>
+      <Link href="/" style={{ textDecoration: 'none' }}>
+        <div className="brand" style={{ cursor: 'pointer' }}>
+          <div className="brand-mark">s</div>
+          {!isIcon && <div className="brand-name">slow<em>desk</em></div>}
+        </div>
+      </Link>
 
       <nav style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
         {NAV_ITEMS.map(item => {

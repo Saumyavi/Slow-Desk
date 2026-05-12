@@ -123,6 +123,19 @@ export async function updateUserPreferences(userId: string, updates: any) {
 
 // ========== TASKS ==========
 
+function dueBucketToDate(bucket: string): string | null {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const add = (days: number) => { const d = new Date(today); d.setDate(d.getDate() + days); return d.toISOString().slice(0, 10); };
+  switch (bucket) {
+    case 'today':     return add(0);
+    case 'tomorrow':  return add(1);
+    case 'this week': return add(3);
+    case 'next week': return add(9);
+    case 'someday':   return null;
+    default:          return null;
+  }
+}
+
 export async function getTasks(userId: string) {
   const supabase = getClient();
   const { data, error } = await supabase
@@ -140,7 +153,7 @@ export async function getTasks(userId: string) {
     project: t.projects?.name || '',
     tone: t.tone,
     attach: t.attach,
-    due: t.due,
+    due: t.due_date ? dateToDueBucket(t.due_date) : t.due,
     time: t.time,
     priority: t.priority,
     description: t.description ?? undefined,
@@ -175,6 +188,7 @@ export async function createTask(userId: string, task: any) {
       tone: task.tone,
       attach: task.attach,
       due: task.due,
+      due_date: dueBucketToDate(task.due),
       time: task.time,
       priority: task.priority,
       description: task.description ?? null,
@@ -197,7 +211,7 @@ export async function updateTask(userId: string, taskId: string, updates: any) {
   if (updates.done !== undefined) updateData.done = updates.done;
   if (updates.tone !== undefined) updateData.tone = updates.tone;
   if (updates.attach !== undefined) updateData.attach = updates.attach;
-  if (updates.due !== undefined) updateData.due = updates.due;
+  if (updates.due !== undefined) { updateData.due = updates.due; updateData.due_date = dueBucketToDate(updates.due); }
   if (updates.time !== undefined) updateData.time = updates.time;
   if (updates.priority !== undefined) updateData.priority = updates.priority;
   if (updates.description !== undefined) updateData.description = updates.description || null;

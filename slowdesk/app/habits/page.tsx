@@ -8,8 +8,19 @@ import Icon from '@/components/Icon';
 
 
 const ACCENT_PALETTE = ['#c1623f', '#7a9e7e', '#8b5c75', '#c9943a', '#5b8fbf'];
-const EMOJI_OPTIONS  = ['✍️','🚶','📖','🌙','🎨','🏃','🧘','💧','🍎','🌿','💪','📝','🎯','🎵','🧠','🌞','😴','🚿','🍵','🏋️'];
 const GOAL_OPTIONS   = ['daily', '5/wk', '3/wk', 'weekdays', 'weekends'];
+
+const EMOJI_CATEGORIES = [
+  { label: 'Fitness',    emojis: ['🏃','🏋️','🤸','🚴','🏊','🧗','🤾','⚽','🎾','🏈','🥊','🧘'] },
+  { label: 'Skincare',   emojis: ['🧴','🪥','💆','🧖','🫧','💅','🌸','🪷','🫙','✨','🌺','🌻'] },
+  { label: 'Hydration',  emojis: ['💧','🥤','🧃','🫗','🍵','☕','🫖','🧊','🍶','🥛','🍹','🌊'] },
+  { label: 'Nutrition',  emojis: ['🥗','🥦','🍎','🍇','🥕','🫐','🥑','🌿','🥜','🍓','🥝','🫚'] },
+  { label: 'Sleep',      emojis: ['😴','🌙','⭐','🛌','🌛','🌜','💤','🕯️','🌌','🌠','🛏️','🫁'] },
+  { label: 'Mind',       emojis: ['🧠','📖','📝','✍️','🎯','💡','🔬','📚','🎓','💭','🧩','☮️'] },
+  { label: 'Wellness',   emojis: ['💊','🩺','❤️','🫶','🙏','🌞','🚿','🌈','🍃','🌱','🪴','🦋'] },
+  { label: 'Creative',   emojis: ['🎨','🎵','🎸','🎹','📷','🎬','✏️','🖌️','🎭','🪡','🎤','🎧'] },
+  { label: 'Social',     emojis: ['👥','📞','💬','🤝','💌','👨‍👩‍👧','🏡','☕','🫂','🎁','🥂','🌍'] },
+];
 
 interface SubHabit {
   id: string;
@@ -182,14 +193,23 @@ function HabitModal({ editHabit, onSave, onDelete, onClose }: {
           {/* emoji quick-picks */}
           <div>
             {fieldLabel('Quick pick')}
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-              {EMOJI_OPTIONS.map(e => (
-                <button key={e} onClick={() => setEmoji(e)} style={{
-                  width: 36, height: 36, borderRadius: 8, fontSize: 18, cursor: 'pointer',
-                  border: emoji === e ? `2px solid ${color}` : '1.5px solid var(--line)',
-                  background: emoji === e ? color + '18' : 'var(--bg-sunk)',
-                  transition: 'all 0.12s',
-                }}>{e}</button>
+            <div style={{ maxHeight: 200, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10, paddingRight: 4 }}>
+              {EMOJI_CATEGORIES.map(cat => (
+                <div key={cat.label}>
+                  <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--ink-faint)', marginBottom: 5 }}>
+                    {cat.label}
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                    {cat.emojis.map(e => (
+                      <button key={e} onClick={() => setEmoji(e)} style={{
+                        width: 34, height: 34, borderRadius: 8, fontSize: 17, cursor: 'pointer',
+                        border: emoji === e ? `2px solid ${color}` : '1.5px solid var(--line)',
+                        background: emoji === e ? color + '18' : 'var(--bg-sunk)',
+                        transition: 'all 0.12s',
+                      }}>{e}</button>
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
           </div>

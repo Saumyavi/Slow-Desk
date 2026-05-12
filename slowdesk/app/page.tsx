@@ -589,6 +589,135 @@ function ThisMonth() {
   );
 }
 
+function isScheduledToday(goal: string): boolean {
+  const day = new Date().getDay(); // 0=Sun,1=Mon,...,6=Sat
+  switch (goal) {
+    case 'daily':    return true;
+    case 'weekdays': return day >= 1 && day <= 5;
+    case 'weekends': return day === 0 || day === 6;
+    case '5/wk':     return day >= 1 && day <= 5;
+    case '3/wk':     return day === 1 || day === 3 || day === 5; // Mon/Wed/Fri
+    default:         return true;
+  }
+}
+
+/* ── Today's habits ─────────────────────────────────────────── */
+function TodayHabits() {
+  const { user } = useApp();
+  const router = useRouter();
+  const [habits, setHabits] = useState<{ id: string; name: string; emoji: string; color: string; done: boolean }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const today = new Date().toISOString().slice(0, 10);
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(async ({ data: { user: u } }) => {
+      if (!u) { setLoading(false); return; }
+      try {
+        const data = await db.getHabits(u.id);
+        setHabits(
+          data
+            .filter((h: { goal: string }) => isScheduledToday(h.goal))
+            .map((h: { id: string; name: string; emoji: string; color: string; history: string[] }) => ({
+              id: h.id, name: h.name, emoji: h.emoji, color: h.color,
+              done: (h.history ?? []).includes(today),
+            }))
+        );
+      } catch { /* silent */ }
+      setLoading(false);
+    });
+  }, [user?.email, today]);
+
+  const toggle = async (id: string) => {
+    setHabits(prev => prev.map(h => h.id === id ? { ...h, done: !h.done } : h));
+    try { await db.toggleHabitDate(id, today); } catch {
+      setHabits(prev => prev.map(h => h.id === id ? { ...h, done: !h.done } : h));
+    }
+  };
+
+  const pending  = habits.filter(h => !h.done);
+  const doneCount = habits.filter(h => h.done).length;
+  const pct = habits.length ? Math.round((doneCount / habits.length) * 100) : 0;
+
+  return (
+    <div className="card" style={{ padding: '18px 20px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 12 }}>
+        <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--ink-faint)', textTransform: 'uppercase', letterSpacing: '0.1em', flex: 1 }}>
+          Today's habits
+        </span>
+        {habits.length > 0 && (
+          <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--accent)', fontWeight: 700 }}>
+            {doneCount}/{habits.length} · {pct}%
+          </span>
+        )}
+        <button onClick={() => router.push('/habits')} style={{
+          marginLeft: 10, background: 'none', border: 'none', cursor: 'pointer',
+          color: 'var(--ink-faint)', display: 'flex', alignItems: 'center', padding: 4, borderRadius: 6,
+        }}
+          onMouseEnter={e => (e.currentTarget.style.color = 'var(--accent)')}
+          onMouseLeave={e => (e.currentTarget.style.color = 'var(--ink-faint)')}
+          title="View all habits"
+        ><Icon name="list" size={14} /></button>
+      </div>
+
+      {/* progress bar */}
+      {habits.length > 0 && (
+        <div style={{ height: 4, borderRadius: 2, background: 'var(--line)', marginBottom: 12, overflow: 'hidden' }}>
+          <div style={{ height: '100%', width: `${pct}%`, background: 'var(--accent)', borderRadius: 2, transition: 'width 0.4s ease' }} />
+        </div>
+      )}
+
+      {loading ? (
+        <div style={{ fontSize: 12, color: 'var(--ink-faint)', fontStyle: 'italic', padding: '8px 0' }}>Loading…</div>
+      ) : habits.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '16px 0', fontSize: 12, color: 'var(--ink-faint)', fontStyle: 'italic' }}>
+          No habits yet —{' '}
+          <button onClick={() => router.push('/habits')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent)', fontSize: 12, padding: 0, fontFamily: 'var(--font-sans)' }}>
+            add one
+          </button>
+        </div>
+      ) : pending.length === 0 ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 10, background: 'rgba(122,158,126,0.1)', border: '1px solid rgba(122,158,126,0.3)' }}>
+          <span style={{ fontSize: 20 }}>🎉</span>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#7a9e7e' }}>All done!</div>
+            <div style={{ fontSize: 11, color: 'var(--ink-faint)' }}>All {habits.length} habits completed today</div>
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {habits.map(h => (
+            <div key={h.id} style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              padding: '8px 10px', borderRadius: 8,
+              background: h.done ? 'var(--bg-sunk)' : 'var(--bg-elev)',
+              border: `1px solid ${h.done ? 'var(--line)' : h.color + '35'}`,
+              transition: 'all 0.15s',
+            }}>
+              <button onClick={() => toggle(h.id)} style={{
+                width: 22, height: 22, borderRadius: 6, flexShrink: 0,
+                border: h.done ? 'none' : `2px solid ${h.color}60`,
+                background: h.done ? h.color : 'transparent',
+                display: 'grid', placeItems: 'center', cursor: 'pointer', transition: 'all 0.15s',
+              }}>
+                {h.done && <Icon name="check" size={11} style={{ color: '#fff' }} />}
+              </button>
+              <span style={{ fontSize: 16, flexShrink: 0 }}>{h.emoji}</span>
+              <span style={{
+                flex: 1, fontSize: 13, fontWeight: 500,
+                color: h.done ? 'var(--ink-faint)' : 'var(--ink)',
+                textDecoration: h.done ? 'line-through' : 'none',
+                transition: 'all 0.15s',
+              }}>{h.name}</span>
+              {h.done && <Icon name="check" size={11} style={{ color: h.color, flexShrink: 0 }} />}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ── Active projects 2×2 grid ───────────────────────────────── */
 function ActiveProjects() {
   const { projects, tasks } = useApp();
@@ -958,6 +1087,7 @@ export default function DashboardPage() {
           {/* ── RIGHT col ── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             <TaskOverview tasks={tasks} />
+            <TodayHabits />
             <ThisMonth />
             <ActiveProjects />
           </div>

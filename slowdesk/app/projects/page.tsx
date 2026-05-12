@@ -305,12 +305,22 @@ function ProjectModal({ editProject, onSave, onDelete, onClose, userId }: {
   );
 }
 
+interface ProjectDocument {
+  id: string;
+  file_name: string;
+  file_size: number;
+  file_type: string;
+  storage_path: string;
+  created_at: string;
+}
+
 /* ── Project Card ────────────────────────────────────────── */
-function ProjectCard({ project, projectTasks, index, onEdit }: {
+function ProjectCard({ project, projectTasks, index, onEdit, userId }: {
   project: ProjectData;
   projectTasks: Task[];
   index: number;
   onEdit: () => void;
+  userId: string | null;
 }) {
   const { setTasks } = useApp();
   const cardRef = useRef<HTMLDivElement>(null);
@@ -320,6 +330,8 @@ function ProjectCard({ project, projectTasks, index, onEdit }: {
   const [newTask,     setNewTask]     = useState('');
   const [editingTask, setEditingTask] = useState<string | null>(null);
   const [editVal,     setEditVal]     = useState('');
+  const [docs,        setDocs]        = useState<ProjectDocument[]>([]);
+  const [docsLoaded,  setDocsLoaded]  = useState(false);
 
   const color    = TONE_COLORS[project.tone];
   const progress = computeProgress(projectTasks);
@@ -329,6 +341,22 @@ function ProjectCard({ project, projectTasks, index, onEdit }: {
     if (!cardRef.current) return;
     gsap.fromTo(cardRef.current, { y: 20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.45, ease: 'power2.out', delay: index * 0.07 });
   }, [index]);
+
+  useEffect(() => {
+    if (!expanded || docsLoaded) return;
+    db.getProjectDocuments(project.id).then(data => {
+      setDocs(data as ProjectDocument[]);
+      setDocsLoaded(true);
+    });
+  }, [expanded, docsLoaded, project.id]);
+
+  const deleteDoc = async (docId: string) => {
+    if (!userId) return;
+    try {
+      await db.deleteProjectDocument(userId, docId);
+      setDocs(prev => prev.filter(d => d.id !== docId));
+    } catch (err) { console.error(err); }
+  };
 
   const toggleTask = (id: string) =>
     setTasks(prev => prev.map(t => t.id === id ? { ...t, done: !t.done } : t));
@@ -395,6 +423,11 @@ function ProjectCard({ project, projectTasks, index, onEdit }: {
         }}>
           <Icon name="chevronD" size={12} style={{ transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
           {doneCount}/{projectTasks.length} tasks
+          {docsLoaded && docs.length > 0 && (
+            <span style={{ marginLeft: 4, display: 'flex', alignItems: 'center', gap: 2 }}>
+              · <Icon name="paperclip" size={10} /> {docs.length}
+            </span>
+          )}
         </button>
         <div style={{ flex: 1 }} />
         <span className="tag" style={{ background: color + '22', color }}>{project.tone}</span>
@@ -479,6 +512,38 @@ function ProjectCard({ project, projectTasks, index, onEdit }: {
             }}>
               <Icon name="plus" size={11} /> Add task
             </button>
+          )}
+
+          {/* Documents section */}
+          {docsLoaded && docs.length > 0 && (
+            <div style={{ marginTop: 14, borderTop: '1px solid var(--line)', paddingTop: 10 }}>
+              <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--ink-faint)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}>
+                <Icon name="paperclip" size={10} /> Reference docs
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {docs.map(doc => (
+                  <div key={doc.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 6, background: 'var(--bg-sunk)', border: '1px solid var(--line)' }}>
+                    <Icon name="paperclip" size={11} style={{ color, flexShrink: 0 }} />
+                    <button
+                      onClick={async () => { const url = await db.getProjectDocumentUrl(doc.storage_path); window.open(url, '_blank'); }}
+                      style={{ flex: 1, fontSize: 12, color: 'var(--ink)', background: 'none', border: 'none', textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'pointer', padding: 0, fontFamily: 'var(--font-sans)' }}
+                      title={`Open ${doc.file_name}`}
+                    >
+                      {doc.file_name}
+                    </button>
+                    <span style={{ fontSize: 10, color: 'var(--ink-faint)', flexShrink: 0 }}>{(doc.file_size / 1024).toFixed(0)} KB</span>
+                    <button
+                      onClick={() => deleteDoc(doc.id)}
+                      style={{ width: 18, height: 18, borderRadius: 4, border: 'none', background: 'transparent', cursor: 'pointer', display: 'grid', placeItems: 'center', color: 'var(--ink-faint)', flexShrink: 0, opacity: 0, transition: 'opacity 0.12s' }}
+                      onMouseEnter={e => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.color = '#e05c3c'; }}
+                      onMouseLeave={e => { e.currentTarget.style.opacity = '0'; e.currentTarget.style.color = 'var(--ink-faint)'; }}
+                    >
+                      <Icon name="x" size={10} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
         </div>
       )}
@@ -635,6 +700,7 @@ export default function ProjectsPage() {
                 project={p}
                 projectTasks={getProjectTasks(p.name)}
                 index={i}
+                userId={userId}
                 onEdit={() => setModal({ project: p })}
               />
             ))}
