@@ -69,7 +69,7 @@ export async function updateNotificationPrefs(userId: string, prefs: Partial<Not
   return true;
 }
 
-export async function createUserProfile(userId: string, name: string, email: string) {
+export async function createUserProfile(userId: string, name: string, _email: string) {
   const supabase = getClient();
   const { error } = await supabase
     .from('user_profiles')
@@ -143,6 +143,7 @@ export async function getTasks(userId: string) {
     due: t.due,
     time: t.time,
     priority: t.priority,
+    description: t.description ?? undefined,
     recurrenceRule: t.recurrence_rule ?? undefined,
     recurrenceTemplateId: t.recurrence_template_id ?? undefined,
   }));
@@ -176,6 +177,7 @@ export async function createTask(userId: string, task: any) {
       due: task.due,
       time: task.time,
       priority: task.priority,
+      description: task.description ?? null,
       recurrence_rule: task.recurrenceRule ?? null,
       recurrence_template_id: task.recurrenceTemplateId ?? null,
     })
@@ -198,6 +200,7 @@ export async function updateTask(userId: string, taskId: string, updates: any) {
   if (updates.due !== undefined) updateData.due = updates.due;
   if (updates.time !== undefined) updateData.time = updates.time;
   if (updates.priority !== undefined) updateData.priority = updates.priority;
+  if (updates.description !== undefined) updateData.description = updates.description || null;
   if (updates.recurrenceRule !== undefined) updateData.recurrence_rule = updates.recurrenceRule || null;
 
   if (updates.project !== undefined) {
@@ -430,6 +433,119 @@ export async function deleteProject(userId: string, projectId: string) {
 
   if (error) throw error;
   return true;
+}
+
+// ========== PROJECT DOCUMENTS ==========
+
+export async function getProjectDocuments(projectId: string) {
+  const supabase = getClient();
+  const { data, error } = await supabase
+    .from('project_documents')
+    .select('*')
+    .eq('project_id', projectId)
+    .order('created_at', { ascending: false });
+
+  if (error || !data) return [];
+  return data;
+}
+
+export async function uploadProjectDocument(
+  _userId: string,
+  projectId: string,
+  file: File
+): Promise<{ id: string; storage_path: string; file_name: string }> {
+  const supabase = getClient();
+
+  // Get authenticated user to ensure RLS passes
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) {
+    console.error('Auth error:', authError);
+    throw new Error('Not authenticated');
+  }
+
+  // Generate unique file path
+  const fileExt = file.name.split('.').pop();
+  const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${fileExt}`;
+  const filePath = `${user.id}/${projectId}/${fileName}`;
+
+  // Upload to Supabase Storage
+  const { error: uploadError } = await supabase.storage
+    .from('project-documents')
+    .upload(filePath, file, {
+      cacheControl: '3600',
+      upsert: false
+    });
+
+  if (uploadError) {
+    console.error('Storage upload error:', uploadError);
+    throw uploadError;
+  }
+
+  // Save metadata to database
+  const docId = `pd${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+  const { data, error: dbError } = await supabase
+    .from('project_documents')
+    .insert({
+      id: docId,
+      project_id: projectId,
+      user_id: user.id,
+      file_name: file.name,
+      file_size: file.size,
+      file_type: file.type,
+      storage_path: filePath,
+    })
+    .select()
+    .single();
+
+  if (dbError) {
+    console.error('Database insert error:', dbError);
+    throw dbError;
+  }
+
+  return {
+    id: data.id,
+    storage_path: data.storage_path,
+    file_name: data.file_name
+  };
+}
+
+export async function deleteProjectDocument(userId: string, documentId: string) {
+  const supabase = getClient();
+
+  // Get document info
+  const { data: doc } = await supabase
+    .from('project_documents')
+    .select('storage_path')
+    .eq('id', documentId)
+    .eq('user_id', userId)
+    .single();
+
+  if (!doc) throw new Error('Document not found');
+
+  // Delete from storage
+  await supabase.storage
+    .from('project-documents')
+    .remove([doc.storage_path]);
+
+  // Delete from database
+  const { error } = await supabase
+    .from('project_documents')
+    .delete()
+    .eq('id', documentId)
+    .eq('user_id', userId);
+
+  if (error) throw error;
+  return true;
+}
+
+export async function getProjectDocumentUrl(storagePath: string): Promise<string> {
+  const supabase = getClient();
+  const { data } = supabase.storage
+    .from('project-documents')
+    .getPublicUrl(storagePath);
+
+  return data.publicUrl;
 }
 
 // ========== CALENDAR EVENTS ==========
@@ -685,7 +801,7 @@ export async function getHabits(userId: string) {
   const supabase = getClient();
   const { data: habits, error } = await supabase
     .from('habits')
-    .select('*, habit_history(completed_date)')
+    .select('*, habit_history(completed_date), subhabits(*)')
     .eq('user_id', userId)
     .order('created_at', { ascending: false });
 
@@ -698,6 +814,7 @@ export async function getHabits(userId: string) {
     goal: h.goal,
     color: h.color,
     history: (h.habit_history || []).map((hh: any) => hh.completed_date),
+    subhabits: (h.subhabits || []).sort((a: any, b: any) => a.position - b.position),
   }));
 }
 
@@ -774,6 +891,62 @@ export async function toggleHabitDate(habitId: string, date: string) {
       });
   }
 
+  return true;
+}
+
+// ========== SUBHABITS ==========
+
+export async function getSubhabits(habitId: string) {
+  const supabase = getClient();
+  const { data, error } = await supabase
+    .from('subhabits')
+    .select('*')
+    .eq('habit_id', habitId)
+    .order('position', { ascending: true });
+
+  if (error || !data) return [];
+  return data;
+}
+
+export async function createSubhabit(habitId: string, title: string, position: number = 0) {
+  const supabase = getClient();
+  const { data, error } = await supabase
+    .from('subhabits')
+    .insert({
+      id: `sh${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      habit_id: habitId,
+      title,
+      position,
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function updateSubhabit(subhabitId: string, updates: any) {
+  const supabase = getClient();
+  const { error } = await supabase
+    .from('subhabits')
+    .update({
+      ...updates,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', subhabitId);
+
+  if (error) throw error;
+  return true;
+}
+
+export async function deleteSubhabit(subhabitId: string) {
+  const supabase = getClient();
+  const { error } = await supabase
+    .from('subhabits')
+    .delete()
+    .eq('id', subhabitId);
+
+  if (error) throw error;
   return true;
 }
 

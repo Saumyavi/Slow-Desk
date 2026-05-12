@@ -29,6 +29,7 @@ export default function TaskModal({ editTask, onAdd, onEdit, onClose }: TaskModa
   const { projects } = useApp();
   const isEdit = !!editTask;
   const [title, setTitle] = useState(editTask?.title ?? '');
+  const [description, setDescription] = useState(editTask?.description ?? '');
   const [due, setDue] = useState<Task['due']>(editTask?.due ?? 'today');
   const [priority, setPriority] = useState<'high' | 'medium' | 'low'>(editTask?.priority ?? 'medium');
   const [project, setProject] = useState(editTask?.project ?? projects[0]?.name ?? '');
@@ -117,10 +118,11 @@ export default function TaskModal({ editTask, onAdd, onEdit, onClose }: TaskModa
   const submit = () => {
     if (!title.trim()) return;
     const rule = effectiveRule || undefined;
+    const desc = description.trim() || undefined;
     if (isEdit && editTask && onEdit) {
-      onEdit({ ...editTask, title: title.trim(), due, priority, project, recurrenceRule: rule });
+      onEdit({ ...editTask, title: title.trim(), due, priority, project, description: desc, recurrenceRule: rule });
     } else if (onAdd) {
-      onAdd({ title: title.trim(), done: false, project: project || 'Inbox', tone: 'terra', attach: 0, due, time: '—', priority, recurrenceRule: rule });
+      onAdd({ title: title.trim(), done: false, project: project || 'Inbox', tone: 'terra', attach: 0, due, time: '—', priority, description: desc, recurrenceRule: rule });
     }
     close();
   };
@@ -180,6 +182,24 @@ export default function TaskModal({ editTask, onAdd, onEdit, onClose }: TaskModa
                 }
               </button>
             )}
+          </div>
+
+          <div>
+            <label style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--ink-faint)', display: 'block', marginBottom: 6 }}>Description (optional)</label>
+            <textarea
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              placeholder="Add links, notes, or context... e.g., https://example.com/document"
+              rows={3}
+              style={{
+                width: '100%', padding: '10px 12px', borderRadius: 8, boxSizing: 'border-box',
+                border: '1.5px solid var(--line)', background: 'var(--bg-sunk)',
+                fontSize: 13, color: 'var(--ink)', outline: 'none', fontFamily: 'var(--font-sans)',
+                resize: 'vertical', lineHeight: 1.5,
+              }}
+              onFocus={e => (e.currentTarget.style.borderColor = 'var(--accent)')}
+              onBlur={e => (e.currentTarget.style.borderColor = 'var(--line)')}
+            />
           </div>
 
           <div>

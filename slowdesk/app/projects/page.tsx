@@ -12,11 +12,12 @@ const TONE_OPTIONS: Tone[] = ['terra', 'sage', 'butter', 'plum', 'sky'];
 const TONE_LABELS: Record<Tone, string> = { terra: 'Terracotta', sage: 'Sage', butter: 'Butter', plum: 'Plum', sky: 'Sky' };
 
 /* ── Project Modal ───────────────────────────────────────── */
-function ProjectModal({ editProject, onSave, onDelete, onClose }: {
+function ProjectModal({ editProject, onSave, onDelete, onClose, userId }: {
   editProject?: ProjectData;
-  onSave: (data: Omit<ProjectData, 'id'>) => void;
+  onSave: (data: Omit<ProjectData, 'id'>, files?: File[]) => void;
   onDelete?: () => void;
   onClose: () => void;
+  userId: string | null;
 }) {
   const isEdit = !!editProject;
   const [name,  setName]  = useState(editProject?.name  ?? '');
@@ -25,6 +26,8 @@ function ProjectModal({ editProject, onSave, onDelete, onClose }: {
   const [due,   setDue]   = useState(editProject?.due   ?? '');
   const [desc,  setDesc]  = useState(editProject?.desc  ?? '');
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const overlayRef = useRef<HTMLDivElement>(null);
   const panelRef   = useRef<HTMLDivElement>(null);
@@ -43,8 +46,20 @@ function ProjectModal({ editProject, onSave, onDelete, onClose }: {
 
   const submit = () => {
     if (!name.trim()) return;
-    onSave({ name: name.trim(), short: (short || name.slice(0, 2)).toUpperCase(), tone, due, desc });
+    onSave(
+      { name: name.trim(), short: (short || name.slice(0, 2)).toUpperCase(), tone, due, desc },
+      uploadedFiles.length > 0 ? uploadedFiles : undefined
+    );
     close();
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    setUploadedFiles(prev => [...prev, ...files]);
+  };
+
+  const removeFile = (index: number) => {
+    setUploadedFiles(prev => prev.filter((_, i) => i !== index));
   };
 
   const color = TONE_COLORS[tone];
@@ -129,6 +144,135 @@ function ProjectModal({ editProject, onSave, onDelete, onClose }: {
               onFocus={e => (e.currentTarget.style.borderColor = color)}
               onBlur={e => (e.currentTarget.style.borderColor = 'var(--line)')}
             />
+          </div>
+
+          <div>
+            {fieldLabel('Reference Documents (optional)')}
+            <div style={{
+              border: '1.5px dashed var(--line)',
+              borderRadius: 8,
+              background: 'var(--bg-sunk)',
+              padding: 12,
+              transition: 'border-color 0.15s'
+            }}>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept=".pdf,.doc,.docx,.txt,.md,.jpg,.jpeg,.png"
+                onChange={handleFileSelect}
+                style={{ display: 'none' }}
+              />
+
+              {uploadedFiles.length === 0 ? (
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    borderRadius: 6,
+                    border: 'none',
+                    background: 'transparent',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: 6,
+                    transition: 'background 0.13s'
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-elev)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                >
+                  <Icon name="paperclip" size={16} style={{ color: 'var(--ink-faint)' }} />
+                  <span style={{ fontSize: 12, color: 'var(--ink-soft)' }}>
+                    Click to upload documents, images, or files
+                  </span>
+                  <span style={{ fontSize: 10, color: 'var(--ink-faint)', fontStyle: 'italic' }}>
+                    PDF, DOC, TXT, MD, JPG, PNG
+                  </span>
+                </button>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {uploadedFiles.map((file, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        padding: '8px 10px',
+                        background: 'var(--bg-elev)',
+                        borderRadius: 6,
+                        border: '1px solid var(--line)'
+                      }}
+                    >
+                      <Icon name="paperclip" size={12} style={{ color: color, flexShrink: 0 }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{
+                          fontSize: 12,
+                          color: 'var(--ink)',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap'
+                        }}>
+                          {file.name}
+                        </div>
+                        <div style={{ fontSize: 10, color: 'var(--ink-faint)' }}>
+                          {(file.size / 1024).toFixed(1)} KB
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => removeFile(i)}
+                        style={{
+                          width: 20,
+                          height: 20,
+                          borderRadius: 4,
+                          border: 'none',
+                          background: 'transparent',
+                          cursor: 'pointer',
+                          display: 'grid',
+                          placeItems: 'center',
+                          color: 'var(--ink-faint)',
+                          transition: 'all 0.12s',
+                          flexShrink: 0
+                        }}
+                        onMouseEnter={e => {
+                          e.currentTarget.style.background = 'rgba(224,92,60,0.1)';
+                          e.currentTarget.style.color = '#e05c3c';
+                        }}
+                        onMouseLeave={e => {
+                          e.currentTarget.style.background = 'transparent';
+                          e.currentTarget.style.color = 'var(--ink-faint)';
+                        }}
+                      >
+                        <Icon name="x" size={10} />
+                      </button>
+                    </div>
+                  ))}
+
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    style={{
+                      padding: '6px 12px',
+                      borderRadius: 6,
+                      border: `1px solid ${color}40`,
+                      background: 'transparent',
+                      color: color,
+                      fontSize: 11,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      fontFamily: 'var(--font-sans)',
+                      transition: 'all 0.13s',
+                      marginTop: 4
+                    }}
+                    onMouseEnter={e => (e.currentTarget.style.background = `${color}15`)}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                  >
+                    + Add more files
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -364,14 +508,30 @@ export default function ProjectsPage() {
     );
   }, []);
 
-  const saveProject = async (data: Omit<ProjectData, 'id'>, editId?: string) => {
+  const saveProject = async (data: Omit<ProjectData, 'id'>, files?: File[], editId?: string) => {
     if (!userId) return;
     try {
       if (editId) {
         await db.updateProject(userId, editId, data);
+
+        // Upload new files if provided
+        if (files && files.length > 0) {
+          for (const file of files) {
+            await db.uploadProjectDocument(userId, editId, file);
+          }
+        }
+
         setProjects(prev => prev.map(p => p.id === editId ? { ...p, ...data } : p));
       } else {
         const newProject = await db.createProject(userId, data);
+
+        // Upload files if provided
+        if (files && files.length > 0) {
+          for (const file of files) {
+            await db.uploadProjectDocument(userId, newProject.id, file);
+          }
+        }
+
         setProjects(prev => [...prev, { id: newProject.id, ...data }]);
       }
     } catch (err) {
@@ -485,7 +645,8 @@ export default function ProjectsPage() {
       {modal && (
         <ProjectModal
           editProject={modal.project}
-          onSave={data => saveProject(data, modal.project?.id)}
+          userId={userId}
+          onSave={(data, files) => saveProject(data, files, modal.project?.id)}
           onDelete={modal.project ? () => deleteProject(modal.project!.id) : undefined}
           onClose={() => setModal(null)}
         />

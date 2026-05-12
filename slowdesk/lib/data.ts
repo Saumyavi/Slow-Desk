@@ -11,6 +11,7 @@ export interface Task {
   due: 'today' | 'tomorrow' | 'this week' | 'next week' | 'someday';
   time: string;
   priority: Priority;
+  description?: string;           // optional notes, links, or context
   recurrenceRule?: string;        // 'daily' | 'weekly:N' (0=Sun) | 'monthly:N'
   recurrenceTemplateId?: string;  // id of the seed task for this series
 }
@@ -202,12 +203,6 @@ export const QUOTES = [
 export const PROJECTS: Project[] = [];
 export const HABITS: Habit[] = [];
 export const NOTES: Note[] = [];
-
-export interface SubTask {
-  id: string;
-  title: string;
-  done: boolean;
-}
 
 export interface ProjectData {
   id: string;
