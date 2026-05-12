@@ -143,8 +143,6 @@ export default function ProfilePage() {
   const [notifSaved,          setNotifSaved]          = useState(false);
   const [notifSaving,         setNotifSaving]         = useState(false);
   const [ritualSaved,         setRitualSaved]         = useState(false);
-  const [testSending,         setTestSending]         = useState(false);
-  const [testResult,          setTestResult]          = useState<{ ok: boolean; msg: string } | null>(null);
   const [hoveredAccent,       setHoveredAccent]       = useState<string | null>(null);
 
   const [exporting, setExporting] = useState<string | null>(null);
@@ -263,27 +261,6 @@ export default function ProfilePage() {
     });
   }, []);
 
-  const sendTestDigest = async () => {
-    setTestSending(true);
-    setTestResult(null);
-    try {
-      const res = await fetch('/api/notifications/send-test-digest', { method: 'POST' });
-      const json = await res.json();
-      if (json.debug) console.log('[digest debug]', json.debug);
-      if (!res.ok || !json.success) {
-        const errMsg = json.errors?.[0] || json.error || 'Failed to send';
-        setTestResult({ ok: false, msg: errMsg });
-      } else {
-        const channels = json.sent?.join(' & ') || 'notification';
-        setTestResult({ ok: true, msg: `Test ${channels} sent! Check inbox / spam.` });
-        setTimeout(() => setTestResult(null), 8000);
-      }
-    } catch {
-      setTestResult({ ok: false, msg: 'Network error — check console' });
-    } finally {
-      setTestSending(false);
-    }
-  };
 
   const saveNotifPrefs = async () => {
     setNotifSaving(true);
@@ -907,25 +884,7 @@ export default function ProfilePage() {
               <Icon name="check" size={14} />
               {ritualSaved ? 'Ritual set' : notifSaving ? 'Saving…' : 'Save preferences'}
             </button>
-            <button
-              onClick={sendTestDigest}
-              disabled={testSending || (!notifEmailEnabled && !notifWaEnabled)}
-              style={{
-                padding: '11px 18px', borderRadius: 10, border: '1px solid var(--line)',
-                background: 'var(--bg-sunk)', color: 'var(--ink-soft)', cursor: 'pointer',
-                fontSize: 13, fontFamily: 'var(--font-sans)', display: 'flex', alignItems: 'center', gap: 8,
-                opacity: (testSending || (!notifEmailEnabled && !notifWaEnabled)) ? 0.5 : 1,
-                transition: 'opacity 0.2s',
-              }}
-            >
-              {testSending ? '⏳ Sending…' : '✉ Send test now'}
-            </button>
             {ritualSaved && <span style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 16, color: 'var(--accent)' }}>see you at sunrise ✦</span>}
-            {testResult && (
-              <span style={{ fontSize: 13, color: testResult.ok ? '#7a9e7e' : '#c1623f', fontFamily: 'var(--font-sans)' }}>
-                {testResult.ok ? '✓ ' : '✗ '}{testResult.msg}
-              </span>
-            )}
           </div>
         </div>
 

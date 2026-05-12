@@ -8,8 +8,26 @@ import Icon from '@/components/Icon';
 
 
 const ACCENT_PALETTE = ['#c1623f', '#7a9e7e', '#8b5c75', '#c9943a', '#5b8fbf'];
-const EMOJI_OPTIONS  = ['✍️','🚶','📖','🌙','🎨','🏃','🧘','💧','🍎','🌿','💪','📝','🎯','🎵','🧠','🌞','😴','🚿','🍵','🏋️'];
 const GOAL_OPTIONS   = ['daily', '5/wk', '3/wk', 'weekdays', 'weekends'];
+
+const EMOJI_CATEGORIES = [
+  { label: 'Fitness',    emojis: ['🏃','🏋️','🤸','🚴','🏊','🧗','🤾','⚽','🎾','🏈','🥊','🧘'] },
+  { label: 'Skincare',   emojis: ['🧴','🪥','💆','🧖','🫧','💅','🌸','🪷','🫙','✨','🌺','🌻'] },
+  { label: 'Hydration',  emojis: ['💧','🥤','🧃','🫗','🍵','☕','🫖','🧊','🍶','🥛','🍹','🌊'] },
+  { label: 'Nutrition',  emojis: ['🥗','🥦','🍎','🍇','🥕','🫐','🥑','🌿','🥜','🍓','🥝','🫚'] },
+  { label: 'Sleep',      emojis: ['😴','🌙','⭐','🛌','🌛','🌜','💤','🕯️','🌌','🌠','🛏️','🫁'] },
+  { label: 'Mind',       emojis: ['🧠','📖','📝','✍️','🎯','💡','🔬','📚','🎓','💭','🧩','☮️'] },
+  { label: 'Wellness',   emojis: ['💊','🩺','❤️','🫶','🙏','🌞','🚿','🌈','🍃','🌱','🪴','🦋'] },
+  { label: 'Creative',   emojis: ['🎨','🎵','🎸','🎹','📷','🎬','✏️','🖌️','🎭','🪡','🎤','🎧'] },
+  { label: 'Social',     emojis: ['👥','📞','💬','🤝','💌','👨‍👩‍👧','🏡','☕','🫂','🎁','🥂','🌍'] },
+];
+
+interface SubHabit {
+  id: string;
+  title: string;
+  done: boolean;
+  position: number;
+}
 
 interface HabitData {
   id: string;
@@ -18,6 +36,7 @@ interface HabitData {
   goal: string;
   color: string;
   history: string[]; // "YYYY-MM-DD"
+  subhabits?: SubHabit[];
 }
 
 function toDateStr(d: Date): string {
@@ -53,7 +72,7 @@ function buildHeatmap(historySet: Set<string>): boolean[] {
 /* ── Habit Modal ─────────────────────────────────────────── */
 function HabitModal({ editHabit, onSave, onDelete, onClose }: {
   editHabit?: HabitData;
-  onSave: (data: Omit<HabitData, 'id' | 'history'>) => void;
+  onSave: (data: Omit<HabitData, 'id' | 'history'>, subhabits: string[]) => void;
   onDelete?: () => void;
   onClose: () => void;
 }) {
@@ -63,6 +82,11 @@ function HabitModal({ editHabit, onSave, onDelete, onClose }: {
   const [goal,  setGoal]  = useState(editHabit?.goal  ?? 'daily');
   const [color, setColor] = useState(editHabit?.color ?? ACCENT_PALETTE[0]);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [subhabits, setSubhabits] = useState<string[]>(
+    editHabit?.subhabits?.map(sh => sh.title) ?? []
+  );
+  const [newSubhabit, setNewSubhabit] = useState('');
+  const subhabitInputRef = useRef<HTMLInputElement>(null);
 
   const overlayRef = useRef<HTMLDivElement>(null);
   const panelRef   = useRef<HTMLDivElement>(null);
@@ -84,8 +108,19 @@ function HabitModal({ editHabit, onSave, onDelete, onClose }: {
 
   const submit = () => {
     if (!name.trim()) return;
-    onSave({ name: name.trim(), emoji, goal, color });
+    onSave({ name: name.trim(), emoji, goal, color }, subhabits);
     close();
+  };
+
+  const addSubhabit = () => {
+    if (!newSubhabit.trim()) return;
+    setSubhabits([...subhabits, newSubhabit.trim()]);
+    setNewSubhabit('');
+    setTimeout(() => subhabitInputRef.current?.focus(), 10);
+  };
+
+  const removeSubhabit = (index: number) => {
+    setSubhabits(subhabits.filter((_, i) => i !== index));
   };
 
   const handleDelete = () => {
@@ -158,14 +193,23 @@ function HabitModal({ editHabit, onSave, onDelete, onClose }: {
           {/* emoji quick-picks */}
           <div>
             {fieldLabel('Quick pick')}
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-              {EMOJI_OPTIONS.map(e => (
-                <button key={e} onClick={() => setEmoji(e)} style={{
-                  width: 36, height: 36, borderRadius: 8, fontSize: 18, cursor: 'pointer',
-                  border: emoji === e ? `2px solid ${color}` : '1.5px solid var(--line)',
-                  background: emoji === e ? color + '18' : 'var(--bg-sunk)',
-                  transition: 'all 0.12s',
-                }}>{e}</button>
+            <div style={{ maxHeight: 200, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10, paddingRight: 4 }}>
+              {EMOJI_CATEGORIES.map(cat => (
+                <div key={cat.label}>
+                  <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--ink-faint)', marginBottom: 5 }}>
+                    {cat.label}
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                    {cat.emojis.map(e => (
+                      <button key={e} onClick={() => setEmoji(e)} style={{
+                        width: 34, height: 34, borderRadius: 8, fontSize: 17, cursor: 'pointer',
+                        border: emoji === e ? `2px solid ${color}` : '1.5px solid var(--line)',
+                        background: emoji === e ? color + '18' : 'var(--bg-sunk)',
+                        transition: 'all 0.12s',
+                      }}>{e}</button>
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
           </div>
@@ -199,6 +243,119 @@ function HabitModal({ editHabit, onSave, onDelete, onClose }: {
                   transform: color === c ? 'scale(1.18)' : 'scale(1)',
                 }} />
               ))}
+            </div>
+          </div>
+
+          {/* sub-habits */}
+          <div>
+            {fieldLabel('Sub-habits (optional)')}
+            <div style={{
+              border: '1.5px solid var(--line)',
+              borderRadius: 8,
+              background: 'var(--bg-sunk)',
+              padding: 8,
+              maxHeight: 200,
+              overflowY: 'auto'
+            }}>
+              {subhabits.length === 0 ? (
+                <div style={{
+                  fontSize: 11,
+                  color: 'var(--ink-faint)',
+                  textAlign: 'center',
+                  padding: '8px 0',
+                  fontStyle: 'italic'
+                }}>
+                  Add steps to break down this habit
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8 }}>
+                  {subhabits.map((sh, i) => (
+                    <div key={i} style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      padding: '6px 8px',
+                      background: 'var(--bg-elev)',
+                      borderRadius: 6,
+                      border: '1px solid var(--line)'
+                    }}>
+                      <span style={{
+                        fontSize: 12,
+                        color: 'var(--ink)',
+                        flex: 1,
+                        lineHeight: 1.4
+                      }}>{sh}</span>
+                      <button
+                        onClick={() => removeSubhabit(i)}
+                        style={{
+                          width: 20,
+                          height: 20,
+                          borderRadius: 4,
+                          border: 'none',
+                          background: 'transparent',
+                          cursor: 'pointer',
+                          display: 'grid',
+                          placeItems: 'center',
+                          color: 'var(--ink-faint)',
+                          transition: 'all 0.12s'
+                        }}
+                        onMouseEnter={e => {
+                          e.currentTarget.style.background = 'rgba(224,92,60,0.1)';
+                          e.currentTarget.style.color = '#e05c3c';
+                        }}
+                        onMouseLeave={e => {
+                          e.currentTarget.style.background = 'transparent';
+                          e.currentTarget.style.color = 'var(--ink-faint)';
+                        }}
+                      >
+                        <Icon name="x" size={10} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: 6 }}>
+                <input
+                  ref={subhabitInputRef}
+                  value={newSubhabit}
+                  onChange={e => setNewSubhabit(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && addSubhabit()}
+                  placeholder="Add a step..."
+                  style={{
+                    flex: 1,
+                    padding: '6px 10px',
+                    borderRadius: 6,
+                    border: '1.5px solid var(--line)',
+                    background: 'var(--bg-elev)',
+                    fontSize: 12,
+                    color: 'var(--ink)',
+                    outline: 'none',
+                    fontFamily: 'var(--font-sans)'
+                  }}
+                  onFocus={e => (e.currentTarget.style.borderColor = color)}
+                  onBlur={e => (e.currentTarget.style.borderColor = 'var(--line)')}
+                />
+                <button
+                  onClick={addSubhabit}
+                  disabled={!newSubhabit.trim()}
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: 6,
+                    border: 'none',
+                    background: newSubhabit.trim() ? color : 'var(--line)',
+                    color: '#fff',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    cursor: newSubhabit.trim() ? 'pointer' : 'default',
+                    fontFamily: 'var(--font-sans)',
+                    opacity: newSubhabit.trim() ? 1 : 0.5,
+                    transition: 'all 0.13s'
+                  }}
+                >
+                  Add
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -238,10 +395,11 @@ function HabitModal({ editHabit, onSave, onDelete, onClose }: {
 }
 
 /* ── Habit Row ───────────────────────────────────────────── */
-function HabitRow({ habit, onToggleToday, onEdit }: {
+function HabitRow({ habit, onToggleToday, onEdit, onToggleSubhabit }: {
   habit: HabitData;
   onToggleToday: (id: string) => void;
   onEdit: (h: HabitData) => void;
+  onToggleSubhabit: (habitId: string, subhabitId: string, done: boolean) => void;
 }) {
   const historySet = new Set(habit.history);
   const todayDone  = historySet.has(TODAY);
@@ -251,6 +409,7 @@ function HabitRow({ habit, onToggleToday, onEdit }: {
   const cellRefs = useRef<(HTMLDivElement | null)[]>([]);
   const checkRef = useRef<HTMLButtonElement>(null);
   const [hovered, setHovered] = useState(false);
+  const [showSubhabits, setShowSubhabits] = useState(false);
 
   useEffect(() => {
     const els = cellRefs.current.filter(Boolean);
@@ -348,6 +507,102 @@ function HabitRow({ habit, onToggleToday, onEdit }: {
           );
         })}
       </div>
+
+      {/* Sub-habits */}
+      {Array.isArray(habit.subhabits) && habit.subhabits.length > 0 && (
+        <div>
+          <button
+            onClick={() => setShowSubhabits(!showSubhabits)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '6px 0',
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: 11,
+              fontWeight: 600,
+              color: 'var(--ink-soft)',
+              fontFamily: 'var(--font-sans)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+              transition: 'color 0.13s',
+              width: '100%',
+              justifyContent: 'flex-start'
+            }}
+            onMouseEnter={e => (e.currentTarget.style.color = 'var(--ink)')}
+            onMouseLeave={e => (e.currentTarget.style.color = 'var(--ink-soft)')}
+          >
+            <Icon
+              name="chevronD"
+              size={12}
+              style={{
+                transform: showSubhabits ? 'rotate(180deg)' : 'rotate(0deg)',
+                transition: 'transform 0.2s'
+              }}
+            />
+            Steps ({habit.subhabits.length})
+          </button>
+
+          {showSubhabits && (
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 6,
+              marginTop: 6,
+              paddingLeft: 8,
+              borderLeft: `2px solid ${habit.color}30`
+            }}>
+              {habit.subhabits.map((sh) => (
+                <div
+                  key={sh.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '6px 10px',
+                    background: 'var(--bg-sunk)',
+                    borderRadius: 6,
+                    border: '1px solid var(--line)',
+                    transition: 'all 0.13s'
+                  }}
+                >
+                  <button
+                    onClick={() => onToggleSubhabit(habit.id, sh.id, !sh.done)}
+                    style={{
+                      width: 16,
+                      height: 16,
+                      borderRadius: 3,
+                      flexShrink: 0,
+                      border: sh.done ? 'none' : `1.5px solid ${habit.color}60`,
+                      background: sh.done ? habit.color : 'transparent',
+                      display: 'grid',
+                      placeItems: 'center',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s'
+                    }}
+                  >
+                    {sh.done && <Icon name="check" size={9} style={{ color: '#fff' }} />}
+                  </button>
+                  <span
+                    style={{
+                      flex: 1,
+                      fontSize: 12,
+                      color: sh.done ? 'var(--ink-faint)' : 'var(--ink)',
+                      textDecoration: sh.done ? 'line-through' : 'none',
+                      lineHeight: 1.4,
+                      transition: 'all 0.15s'
+                    }}
+                  >
+                    {sh.title}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -412,16 +667,59 @@ export default function HabitsPage() {
     }
   };
 
-  const saveHabit = async (data: Omit<HabitData, 'id' | 'history'>, editId?: string) => {
+  const saveHabit = async (data: Omit<HabitData, 'id' | 'history'>, subhabits: string[], editId?: string) => {
     if (!userId) return;
 
     try {
       if (editId) {
+        // Update habit
         await db.updateHabit(userId, editId, data);
-        setHabits(prev => prev.map(h => h.id === editId ? { ...h, ...data } : h));
+
+        // Get existing subhabits to compare
+        const existingSubhabits = await db.getSubhabits(editId);
+
+        // Delete old subhabits that are not in the new list
+        for (const existing of existingSubhabits) {
+          await db.deleteSubhabit(existing.id);
+        }
+
+        // Create new subhabits
+        const createdSubhabits: SubHabit[] = [];
+        for (let i = 0; i < subhabits.length; i++) {
+          const sh = await db.createSubhabit(editId, subhabits[i], i);
+          createdSubhabits.push({
+            id: sh.id,
+            title: sh.title,
+            done: sh.done,
+            position: sh.position
+          });
+        }
+
+        // Update state with new data and subhabits
+        setHabits(prev => prev.map(h => h.id === editId ? { ...h, ...data, subhabits: createdSubhabits } : h));
       } else {
         const newHabit = await db.createHabit(userId, { ...data, history: [] });
-        setHabits(prev => [...prev, { id: newHabit.id, history: [], ...data }]);
+
+        // Create sub-habits
+        const createdSubhabits: SubHabit[] = [];
+        for (let i = 0; i < subhabits.length; i++) {
+          const sh = await db.createSubhabit(newHabit.id, subhabits[i], i);
+          createdSubhabits.push({
+            id: sh.id,
+            title: sh.title,
+            done: sh.done,
+            position: sh.position
+          });
+        }
+
+        const newHabitData = {
+          id: newHabit.id,
+          history: [],
+          ...data,
+          subhabits: createdSubhabits
+        };
+
+        setHabits(prev => [...prev, newHabitData]);
       }
     } catch (err) {
       console.error('Failed to save habit:', err);
@@ -436,6 +734,25 @@ export default function HabitsPage() {
       setHabits(prev => prev.filter(h => h.id !== id));
     } catch (err) {
       console.error('Failed to delete habit:', err);
+    }
+  };
+
+  const toggleSubhabit = async (habitId: string, subhabitId: string, done: boolean) => {
+    try {
+      await db.updateSubhabit(subhabitId, { done });
+
+      // Update local state
+      setHabits(prev => prev.map(h => {
+        if (h.id !== habitId) return h;
+        return {
+          ...h,
+          subhabits: h.subhabits?.map(sh =>
+            sh.id === subhabitId ? { ...sh, done } : sh
+          )
+        };
+      }));
+    } catch (err) {
+      console.error('Failed to toggle subhabit:', err);
     }
   };
 
@@ -653,6 +970,7 @@ export default function HabitsPage() {
               <HabitRow key={h.id} habit={h}
                 onToggleToday={onToggleToday}
                 onEdit={habit => setModal({ habit })}
+                onToggleSubhabit={toggleSubhabit}
               />
             ))}
           </div>
@@ -685,7 +1003,7 @@ export default function HabitsPage() {
       {modal && (
         <HabitModal
           editHabit={modal.habit}
-          onSave={data => saveHabit(data, modal.habit?.id)}
+          onSave={(data, subhabits) => saveHabit(data, subhabits, modal.habit?.id)}
           onDelete={modal.habit ? () => deleteHabit(modal.habit!.id) : undefined}
           onClose={() => setModal(null)}
         />

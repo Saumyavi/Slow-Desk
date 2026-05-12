@@ -193,13 +193,35 @@ export default function NotesPage() {
     setDateStr(new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }));
   }, []);
 
+  // Auto-save debounce timer
+  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   const onNoteChange = (val: string) => {
     setContent(prev => ({ ...prev, [activeId]: val }));
     setNotes(prev => prev.map(n =>
       n.id === activeId ? { ...n, preview: val.slice(0, 140) } : n
     ));
     setSaved(false);
+
+    // Clear existing timer
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+    }
+
+    // Set new timer to auto-save after 2 seconds of inactivity
+    autoSaveTimerRef.current = setTimeout(() => {
+      saveNote();
+    }, 2000);
   };
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+      }
+    };
+  }, []);
 
   const saveNote = async () => {
     if (!userId || !activeId) return;

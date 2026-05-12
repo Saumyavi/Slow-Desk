@@ -73,12 +73,7 @@ export async function GET(request: Request) {
         }
 
         if (profile.notification_whatsapp_enabled && profile.notification_phone) {
-          const contentSid = process.env.TWILIO_CONTENT_SID;
-          await sendWhatsApp(
-            contentSid
-              ? { to: profile.notification_phone, contentSid, contentVariables: getMorningDigestTemplateVars(digestData) }
-              : { to: profile.notification_phone, body: getMorningDigestWhatsApp(digestData) },
-          );
+          await sendWhatsApp({ to: profile.notification_phone, body: getMorningDigestWhatsApp(digestData) });
           sent.push('whatsapp');
         }
 
@@ -112,18 +107,24 @@ async function getTodayTasks(
 ) {
   const todayStr = today.toISOString().slice(0, 10);
 
+  // Tasks due today: either due_date <= today (new records) or due = 'today' / 'overdue' (legacy records without due_date)
   const { data } = await supabaseAdmin
     .from('tasks')
-    .select('title, done, priority, projects(name)')
+    .select('title, done, priority, due, due_date, projects(name)')
     .eq('user_id', userId)
     .eq('done', false)
-    .or(`due.is.null,due.lte.${todayStr}`)
     .order('priority', { ascending: false })
-    .limit(10);
+    .limit(50);
 
-  return (data || []).map((t: any) => ({
-    title: t.title,
-    project: t.projects?.name || '',
-    priority: t.priority,
-  }));
+  return (data || [])
+    .filter((t: any) => {
+      if (t.due_date) return t.due_date <= todayStr;
+      return t.due === 'today' || t.due === 'overdue';
+    })
+    .slice(0, 10)
+    .map((t: any) => ({
+      title: t.title,
+      project: t.projects?.name || '',
+      priority: t.priority,
+    }));
 }

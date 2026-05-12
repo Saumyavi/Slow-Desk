@@ -175,13 +175,57 @@ function TaskItem({ task, projectColor, onToggle, onEdit, onDelete, onSkip, onHi
 
         {/* Title + meta */}
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{
-            fontSize: 13, fontWeight: 500,
-            color: task.done ? 'var(--ink-faint)' : 'var(--ink)',
-            textDecoration: task.done ? 'line-through' : 'none',
-            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-            marginBottom: totalCount > 0 ? 5 : 3,
-          }}>{task.title}</div>
+          {/* Title and Description in same row */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: totalCount > 0 ? 5 : 3 }}>
+            <div style={{
+              fontSize: 13, fontWeight: 500,
+              color: task.done ? 'var(--ink-faint)' : 'var(--ink)',
+              textDecoration: task.done ? 'line-through' : 'none',
+              flexShrink: 0,
+            }}>{task.title}</div>
+
+            {/* Description with clickable links - inline */}
+            {task.description && (
+              <div style={{
+                fontSize: 12,
+                color: 'var(--ink-soft)',
+                lineHeight: 1.5,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                flex: 1,
+                minWidth: 0
+              }}>
+                <span style={{ marginRight: 6, color: 'var(--ink-faint)', opacity: 0.5 }}>—</span>
+                {task.description.split(/(\s+)/).map((part, i) => {
+                  const urlMatch = part.match(/^(https?:\/\/[^\s]+)$/);
+                  if (urlMatch) {
+                    return (
+                      <a
+                        key={i}
+                        href={urlMatch[1]}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        style={{
+                          color: 'var(--accent)',
+                          textDecoration: 'none',
+                          borderBottom: '1px solid var(--accent)',
+                          opacity: 0.85,
+                          transition: 'opacity 0.13s'
+                        }}
+                        onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
+                        onMouseLeave={e => (e.currentTarget.style.opacity = '0.85')}
+                      >
+                        {urlMatch[1]}
+                      </a>
+                    );
+                  }
+                  return part;
+                })}
+              </div>
+            )}
+          </div>
 
           {/* Subtask progress bar */}
           {totalCount > 0 && (
@@ -200,7 +244,7 @@ function TaskItem({ task, projectColor, onToggle, onEdit, onDelete, onSkip, onHi
           )}
 
           {totalCount === 0 && (
-            <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: 5, alignItems: 'center', flexWrap: 'wrap' }}>
               {showTime && <span style={{ fontSize: 11, color: 'var(--ink-faint)', fontFamily: 'var(--font-mono)' }}>{task.time}</span>}
               {task.attach > 0 && (
                 <>

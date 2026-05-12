@@ -12,11 +12,12 @@ const TONE_OPTIONS: Tone[] = ['terra', 'sage', 'butter', 'plum', 'sky'];
 const TONE_LABELS: Record<Tone, string> = { terra: 'Terracotta', sage: 'Sage', butter: 'Butter', plum: 'Plum', sky: 'Sky' };
 
 /* ── Project Modal ───────────────────────────────────────── */
-function ProjectModal({ editProject, onSave, onDelete, onClose }: {
+function ProjectModal({ editProject, onSave, onDelete, onClose, userId }: {
   editProject?: ProjectData;
-  onSave: (data: Omit<ProjectData, 'id'>) => void;
+  onSave: (data: Omit<ProjectData, 'id'>, files?: File[]) => void;
   onDelete?: () => void;
   onClose: () => void;
+  userId: string | null;
 }) {
   const isEdit = !!editProject;
   const [name,  setName]  = useState(editProject?.name  ?? '');
@@ -25,6 +26,8 @@ function ProjectModal({ editProject, onSave, onDelete, onClose }: {
   const [due,   setDue]   = useState(editProject?.due   ?? '');
   const [desc,  setDesc]  = useState(editProject?.desc  ?? '');
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const overlayRef = useRef<HTMLDivElement>(null);
   const panelRef   = useRef<HTMLDivElement>(null);
@@ -43,8 +46,20 @@ function ProjectModal({ editProject, onSave, onDelete, onClose }: {
 
   const submit = () => {
     if (!name.trim()) return;
-    onSave({ name: name.trim(), short: (short || name.slice(0, 2)).toUpperCase(), tone, due, desc });
+    onSave(
+      { name: name.trim(), short: (short || name.slice(0, 2)).toUpperCase(), tone, due, desc },
+      uploadedFiles.length > 0 ? uploadedFiles : undefined
+    );
     close();
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    setUploadedFiles(prev => [...prev, ...files]);
+  };
+
+  const removeFile = (index: number) => {
+    setUploadedFiles(prev => prev.filter((_, i) => i !== index));
   };
 
   const color = TONE_COLORS[tone];
@@ -130,6 +145,135 @@ function ProjectModal({ editProject, onSave, onDelete, onClose }: {
               onBlur={e => (e.currentTarget.style.borderColor = 'var(--line)')}
             />
           </div>
+
+          <div>
+            {fieldLabel('Reference Documents (optional)')}
+            <div style={{
+              border: '1.5px dashed var(--line)',
+              borderRadius: 8,
+              background: 'var(--bg-sunk)',
+              padding: 12,
+              transition: 'border-color 0.15s'
+            }}>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept=".pdf,.doc,.docx,.txt,.md,.jpg,.jpeg,.png"
+                onChange={handleFileSelect}
+                style={{ display: 'none' }}
+              />
+
+              {uploadedFiles.length === 0 ? (
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    borderRadius: 6,
+                    border: 'none',
+                    background: 'transparent',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: 6,
+                    transition: 'background 0.13s'
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-elev)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                >
+                  <Icon name="paperclip" size={16} style={{ color: 'var(--ink-faint)' }} />
+                  <span style={{ fontSize: 12, color: 'var(--ink-soft)' }}>
+                    Click to upload documents, images, or files
+                  </span>
+                  <span style={{ fontSize: 10, color: 'var(--ink-faint)', fontStyle: 'italic' }}>
+                    PDF, DOC, TXT, MD, JPG, PNG
+                  </span>
+                </button>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {uploadedFiles.map((file, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        padding: '8px 10px',
+                        background: 'var(--bg-elev)',
+                        borderRadius: 6,
+                        border: '1px solid var(--line)'
+                      }}
+                    >
+                      <Icon name="paperclip" size={12} style={{ color: color, flexShrink: 0 }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{
+                          fontSize: 12,
+                          color: 'var(--ink)',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap'
+                        }}>
+                          {file.name}
+                        </div>
+                        <div style={{ fontSize: 10, color: 'var(--ink-faint)' }}>
+                          {(file.size / 1024).toFixed(1)} KB
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => removeFile(i)}
+                        style={{
+                          width: 20,
+                          height: 20,
+                          borderRadius: 4,
+                          border: 'none',
+                          background: 'transparent',
+                          cursor: 'pointer',
+                          display: 'grid',
+                          placeItems: 'center',
+                          color: 'var(--ink-faint)',
+                          transition: 'all 0.12s',
+                          flexShrink: 0
+                        }}
+                        onMouseEnter={e => {
+                          e.currentTarget.style.background = 'rgba(224,92,60,0.1)';
+                          e.currentTarget.style.color = '#e05c3c';
+                        }}
+                        onMouseLeave={e => {
+                          e.currentTarget.style.background = 'transparent';
+                          e.currentTarget.style.color = 'var(--ink-faint)';
+                        }}
+                      >
+                        <Icon name="x" size={10} />
+                      </button>
+                    </div>
+                  ))}
+
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    style={{
+                      padding: '6px 12px',
+                      borderRadius: 6,
+                      border: `1px solid ${color}40`,
+                      background: 'transparent',
+                      color: color,
+                      fontSize: 11,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      fontFamily: 'var(--font-sans)',
+                      transition: 'all 0.13s',
+                      marginTop: 4
+                    }}
+                    onMouseEnter={e => (e.currentTarget.style.background = `${color}15`)}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                  >
+                    + Add more files
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 20px', borderTop: '1px solid var(--line)', background: 'var(--bg-sunk)' }}>
@@ -161,12 +305,22 @@ function ProjectModal({ editProject, onSave, onDelete, onClose }: {
   );
 }
 
+interface ProjectDocument {
+  id: string;
+  file_name: string;
+  file_size: number;
+  file_type: string;
+  storage_path: string;
+  created_at: string;
+}
+
 /* ── Project Card ────────────────────────────────────────── */
-function ProjectCard({ project, projectTasks, index, onEdit }: {
+function ProjectCard({ project, projectTasks, index, onEdit, userId }: {
   project: ProjectData;
   projectTasks: Task[];
   index: number;
   onEdit: () => void;
+  userId: string | null;
 }) {
   const { setTasks } = useApp();
   const cardRef = useRef<HTMLDivElement>(null);
@@ -176,6 +330,8 @@ function ProjectCard({ project, projectTasks, index, onEdit }: {
   const [newTask,     setNewTask]     = useState('');
   const [editingTask, setEditingTask] = useState<string | null>(null);
   const [editVal,     setEditVal]     = useState('');
+  const [docs,        setDocs]        = useState<ProjectDocument[]>([]);
+  const [docsLoaded,  setDocsLoaded]  = useState(false);
 
   const color    = TONE_COLORS[project.tone];
   const progress = computeProgress(projectTasks);
@@ -185,6 +341,22 @@ function ProjectCard({ project, projectTasks, index, onEdit }: {
     if (!cardRef.current) return;
     gsap.fromTo(cardRef.current, { y: 20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.45, ease: 'power2.out', delay: index * 0.07 });
   }, [index]);
+
+  useEffect(() => {
+    if (!expanded || docsLoaded) return;
+    db.getProjectDocuments(project.id).then(data => {
+      setDocs(data as ProjectDocument[]);
+      setDocsLoaded(true);
+    });
+  }, [expanded, docsLoaded, project.id]);
+
+  const deleteDoc = async (docId: string) => {
+    if (!userId) return;
+    try {
+      await db.deleteProjectDocument(userId, docId);
+      setDocs(prev => prev.filter(d => d.id !== docId));
+    } catch (err) { console.error(err); }
+  };
 
   const toggleTask = (id: string) =>
     setTasks(prev => prev.map(t => t.id === id ? { ...t, done: !t.done } : t));
@@ -251,6 +423,11 @@ function ProjectCard({ project, projectTasks, index, onEdit }: {
         }}>
           <Icon name="chevronD" size={12} style={{ transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
           {doneCount}/{projectTasks.length} tasks
+          {docsLoaded && docs.length > 0 && (
+            <span style={{ marginLeft: 4, display: 'flex', alignItems: 'center', gap: 2 }}>
+              · <Icon name="paperclip" size={10} /> {docs.length}
+            </span>
+          )}
         </button>
         <div style={{ flex: 1 }} />
         <span className="tag" style={{ background: color + '22', color }}>{project.tone}</span>
@@ -336,6 +513,38 @@ function ProjectCard({ project, projectTasks, index, onEdit }: {
               <Icon name="plus" size={11} /> Add task
             </button>
           )}
+
+          {/* Documents section */}
+          {docsLoaded && docs.length > 0 && (
+            <div style={{ marginTop: 14, borderTop: '1px solid var(--line)', paddingTop: 10 }}>
+              <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--ink-faint)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}>
+                <Icon name="paperclip" size={10} /> Reference docs
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {docs.map(doc => (
+                  <div key={doc.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 6, background: 'var(--bg-sunk)', border: '1px solid var(--line)' }}>
+                    <Icon name="paperclip" size={11} style={{ color, flexShrink: 0 }} />
+                    <button
+                      onClick={async () => { const url = await db.getProjectDocumentUrl(doc.storage_path); window.open(url, '_blank'); }}
+                      style={{ flex: 1, fontSize: 12, color: 'var(--ink)', background: 'none', border: 'none', textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'pointer', padding: 0, fontFamily: 'var(--font-sans)' }}
+                      title={`Open ${doc.file_name}`}
+                    >
+                      {doc.file_name}
+                    </button>
+                    <span style={{ fontSize: 10, color: 'var(--ink-faint)', flexShrink: 0 }}>{(doc.file_size / 1024).toFixed(0)} KB</span>
+                    <button
+                      onClick={() => deleteDoc(doc.id)}
+                      style={{ width: 18, height: 18, borderRadius: 4, border: 'none', background: 'transparent', cursor: 'pointer', display: 'grid', placeItems: 'center', color: 'var(--ink-faint)', flexShrink: 0, opacity: 0, transition: 'opacity 0.12s' }}
+                      onMouseEnter={e => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.color = '#e05c3c'; }}
+                      onMouseLeave={e => { e.currentTarget.style.opacity = '0'; e.currentTarget.style.color = 'var(--ink-faint)'; }}
+                    >
+                      <Icon name="x" size={10} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -364,14 +573,30 @@ export default function ProjectsPage() {
     );
   }, []);
 
-  const saveProject = async (data: Omit<ProjectData, 'id'>, editId?: string) => {
+  const saveProject = async (data: Omit<ProjectData, 'id'>, files?: File[], editId?: string) => {
     if (!userId) return;
     try {
       if (editId) {
         await db.updateProject(userId, editId, data);
+
+        // Upload new files if provided
+        if (files && files.length > 0) {
+          for (const file of files) {
+            await db.uploadProjectDocument(userId, editId, file);
+          }
+        }
+
         setProjects(prev => prev.map(p => p.id === editId ? { ...p, ...data } : p));
       } else {
         const newProject = await db.createProject(userId, data);
+
+        // Upload files if provided
+        if (files && files.length > 0) {
+          for (const file of files) {
+            await db.uploadProjectDocument(userId, newProject.id, file);
+          }
+        }
+
         setProjects(prev => [...prev, { id: newProject.id, ...data }]);
       }
     } catch (err) {
@@ -475,6 +700,7 @@ export default function ProjectsPage() {
                 project={p}
                 projectTasks={getProjectTasks(p.name)}
                 index={i}
+                userId={userId}
                 onEdit={() => setModal({ project: p })}
               />
             ))}
@@ -485,7 +711,8 @@ export default function ProjectsPage() {
       {modal && (
         <ProjectModal
           editProject={modal.project}
-          onSave={data => saveProject(data, modal.project?.id)}
+          userId={userId}
+          onSave={(data, files) => saveProject(data, files, modal.project?.id)}
           onDelete={modal.project ? () => deleteProject(modal.project!.id) : undefined}
           onClose={() => setModal(null)}
         />
