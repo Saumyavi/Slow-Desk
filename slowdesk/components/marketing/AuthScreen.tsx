@@ -4,7 +4,7 @@ import { gsap } from 'gsap';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { createUserProfile } from '@/lib/supabase/db';
-import Icon from './Icon';
+import Icon from '@/components/ui/Icon';
 
 function Field({ label, type, value, onChange, placeholder, error, showPassword, onTogglePassword }: {
   label: string; type: string; value: string;

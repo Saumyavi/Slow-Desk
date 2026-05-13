@@ -1,8 +1,8 @@
-import type { Metadata, Viewport } from 'next';
+﻿import type { Metadata, Viewport } from 'next';
 import './globals.css';
-import Providers from '@/components/Providers';
-import AppShell from '@/components/AppShell';
-import ServiceWorkerRegistration from '@/components/ServiceWorkerRegistration';
+import Providers from '@/components/layout/Providers';
+import AppShell from '@/components/layout/AppShell';
+import ServiceWorkerRegistration from '@/components/layout/ServiceWorkerRegistration';
 
 const APP_URL = 'https://slowdesk.app';
 

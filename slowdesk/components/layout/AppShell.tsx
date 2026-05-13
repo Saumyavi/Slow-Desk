@@ -3,10 +3,10 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useApp } from '@/lib/store';
 import { createClient } from '@/lib/supabase/client';
-import Sidebar from './Sidebar';
-import TweaksPanel from './TweaksPanel';
-import Confetti from './Confetti';
-import OnboardingTour from './OnboardingTour';
+import Sidebar from '@/components/layout/Sidebar';
+import TweaksPanel from '@/components/layout/TweaksPanel';
+import Confetti from '@/components/ui/Confetti';
+import OnboardingTour from '@/components/features/OnboardingTour';
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const supabase = createClient();

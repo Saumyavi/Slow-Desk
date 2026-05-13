@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef } from 'react';
 import { gsap } from 'gsap';
-import Icon, { IconName } from './Icon';
+import Icon, { IconName } from '@/components/ui/Icon';
 import { useApp } from '@/lib/store';
 import { TONE_COLORS, computeProgress } from '@/lib/data';
 

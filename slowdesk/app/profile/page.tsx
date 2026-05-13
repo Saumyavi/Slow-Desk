@@ -1,11 +1,11 @@
-'use client';
+﻿'use client';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { gsap } from 'gsap';
 import { createClient } from '@/lib/supabase/client';
 import { useApp, Accent } from '@/lib/store';
 import * as db from '@/lib/supabase/db';
-import Topbar from '@/components/Topbar';
-import Icon from '@/components/Icon';
+import Topbar from '@/components/layout/Topbar';
+import Icon from '@/components/ui/Icon';
 
 const handleSignOut = async () => {
   const supabase = createClient();
@@ -844,13 +844,6 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          {/* Email notice */}
-          {notifEmailEnabled && (
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '11px 14px', borderRadius: 10, background: 'color-mix(in oklch, var(--butter) 12%, var(--bg))', border: '1px solid color-mix(in oklch, var(--butter) 40%, var(--line))', marginBottom: 14, fontSize: 12.5, color: 'var(--ink-soft)', lineHeight: 1.5 }}>
-              <span style={{ fontSize: 16, flexShrink: 0 }}>ℹ</span>
-              <span>Email digest sends to <strong style={{ color: 'var(--ink)' }}>{user?.email}</strong>. On the free Resend tier, delivery only works to verified addresses. If you&apos;re not receiving mails, confirm your address is verified in your Resend dashboard or upgrade to a custom sending domain.</span>
-            </div>
-          )}
 
           {/* Delivery info */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', borderRadius: 12, background: 'var(--bg-sunk)', border: '1px solid var(--line-soft)', marginBottom: 22 }}>

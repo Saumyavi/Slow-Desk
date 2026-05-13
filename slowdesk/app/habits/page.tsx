@@ -1,10 +1,10 @@
-'use client';
+﻿'use client';
 import { useState, useRef, useEffect } from 'react';
 import { gsap } from 'gsap';
 import { createClient } from '@/lib/supabase/client';
 import * as db from '@/lib/supabase/db';
-import Topbar from '@/components/Topbar';
-import Icon from '@/components/Icon';
+import Topbar from '@/components/layout/Topbar';
+import Icon from '@/components/ui/Icon';
 
 
 const ACCENT_PALETTE = ['#c1623f', '#7a9e7e', '#8b5c75', '#c9943a', '#5b8fbf'];

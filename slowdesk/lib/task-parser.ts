@@ -1,7 +1,7 @@
 export interface ExtractedTask {
   title: string;
   priority: 'high' | 'medium' | 'low';
-  due: 'today' | 'tomorrow' | 'this week' | null;
+  due: 'today' | 'tomorrow' | 'this week' | 'overdue' | null;
   notes: string;
 }
 
@@ -229,7 +229,7 @@ export function getTasksSummary(tasks: ExtractedTask[]): string {
   }
 
   const highPriority = tasks.filter(t => t.priority === 'high').length;
-  const dueToday = tasks.filter(t => t.due === 'today').length;
+  const dueToday = tasks.filter(t => t.due === 'today' || t.due === 'overdue').length;
 
   let summary = `Found ${tasks.length} task${tasks.length !== 1 ? 's' : ''}`;
 

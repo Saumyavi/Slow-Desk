@@ -2,7 +2,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { gsap } from 'gsap';
 import { useApp, Accent } from '@/lib/store';
-import Icon from './Icon';
+import Icon from '@/components/ui/Icon';
 
 const ACCENTS: { key: Accent; color: string }[] = [
   { key: 'terracotta', color: '#c1623f' },

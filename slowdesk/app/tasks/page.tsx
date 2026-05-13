@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { gsap } from 'gsap';
 import { useApp } from '@/lib/store';
@@ -6,13 +6,13 @@ import { TONE_COLORS, Task, SubTask, recurrenceLabel, nextOccurrenceDate, dateTo
 import { createClient } from '@/lib/supabase/client';
 import * as db from '@/lib/supabase/db';
 import { ExtractedTask } from '@/lib/task-parser';
-import Topbar from '@/components/Topbar';
-import Icon from '@/components/Icon';
-import TaskModal from '@/components/TaskModal';
-import PomodoroTimer from '@/components/PomodoroTimer';
-import CameraCapture from '@/components/CameraCapture';
-import TaskReview from '@/components/TaskReview';
-import VoiceCapture from '@/components/VoiceCapture';
+import Topbar from '@/components/layout/Topbar';
+import Icon from '@/components/ui/Icon';
+import TaskModal from '@/components/tasks/TaskModal';
+import PomodoroTimer from '@/components/features/PomodoroTimer';
+import CameraCapture from '@/components/features/CameraCapture';
+import TaskReview from '@/components/tasks/TaskReview';
+import VoiceCapture from '@/components/features/VoiceCapture';
 
 type Filter = 'all' | 'today' | 'upcoming' | 'completed' | 'recurring';
 
@@ -811,7 +811,7 @@ export default function TasksPage() {
 
   const byTab = (() => {
     switch (filter) {
-      case 'today':     return tasks.filter(t => t.due === 'today'    && !t.done);
+      case 'today':     return tasks.filter(t => (t.due === 'today' || t.due === 'overdue') && !t.done);
       case 'upcoming':  return tasks.filter(t => (t.due === 'tomorrow' || t.due === 'this week' || t.due === 'next week') && !t.done);
       case 'completed': return tasks.filter(t => t.done);
       case 'recurring': return tasks.filter(t => !!t.recurrenceRule   && !t.done);
@@ -833,7 +833,7 @@ export default function TasksPage() {
   const recurringCount = tasks.filter(t => !!t.recurrenceRule && !t.done).length;
   const FILTERS = [
     { key: 'all'       as Filter, label: 'All',       count: tasks.length },
-    { key: 'today'     as Filter, label: 'Today',     count: tasks.filter(t => t.due === 'today'    && !t.done).length },
+    { key: 'today'     as Filter, label: 'Today',     count: tasks.filter(t => (t.due === 'today' || t.due === 'overdue') && !t.done).length },
     { key: 'upcoming'  as Filter, label: 'Upcoming',  count: tasks.filter(t => (t.due === 'tomorrow' || t.due === 'this week' || t.due === 'next week') && !t.done).length },
     { key: 'completed' as Filter, label: 'Completed', count: completedCount },
     { key: 'recurring' as Filter, label: '↻ Recurring', count: recurringCount },

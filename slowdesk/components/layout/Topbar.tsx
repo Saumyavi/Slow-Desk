@@ -3,7 +3,7 @@ import { ReactNode, useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { gsap } from 'gsap';
 import { createClient } from '@/lib/supabase/client';
-import Icon, { IconName } from './Icon';
+import Icon, { IconName } from '@/components/ui/Icon';
 import { useApp } from '@/lib/store';
 import { HABITS, Note } from '@/lib/data';
 import * as db from '@/lib/supabase/db';
