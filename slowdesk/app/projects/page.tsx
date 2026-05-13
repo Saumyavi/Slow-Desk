@@ -1,12 +1,12 @@
-'use client';
+﻿'use client';
 import { useState, useRef, useEffect } from 'react';
 import { gsap } from 'gsap';
 import { TONE_COLORS, Tone, ProjectData, Task, computeProgress } from '@/lib/data';
 import { useApp } from '@/lib/store';
 import { createClient } from '@/lib/supabase/client';
 import * as db from '@/lib/supabase/db';
-import Topbar from '@/components/Topbar';
-import Icon from '@/components/Icon';
+import Topbar from '@/components/layout/Topbar';
+import Icon from '@/components/ui/Icon';
 
 const TONE_OPTIONS: Tone[] = ['terra', 'sage', 'butter', 'plum', 'sky'];
 const TONE_LABELS: Record<Tone, string> = { terra: 'Terracotta', sage: 'Sage', butter: 'Butter', plum: 'Plum', sky: 'Sky' };

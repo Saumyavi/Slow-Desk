@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { ExtractedTask, getTasksSummary } from '@/lib/task-parser';
 import { TONE_COLORS } from '@/lib/data';
-import Icon from './Icon';
+import Icon from '@/components/ui/Icon';
 
 interface TaskReviewProps {
   tasks: ExtractedTask[];

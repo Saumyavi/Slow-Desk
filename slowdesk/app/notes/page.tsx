@@ -1,13 +1,13 @@
-'use client';
+﻿'use client';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { gsap } from 'gsap';
 import { TONE_COLORS, Note, Task, relativeTime } from '@/lib/data';
 import { useApp } from '@/lib/store';
 import { createClient } from '@/lib/supabase/client';
 import * as db from '@/lib/supabase/db';
-import Topbar from '@/components/Topbar';
-import Icon from '@/components/Icon';
-import TaskModal from '@/components/TaskModal';
+import Topbar from '@/components/layout/Topbar';
+import Icon from '@/components/ui/Icon';
+import TaskModal from '@/components/tasks/TaskModal';
 
 /* ── Decorative SVG ──────────────────────────────────────── */
 const SparkSvg = () => (

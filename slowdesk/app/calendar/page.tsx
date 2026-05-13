@@ -1,12 +1,12 @@
-'use client';
+﻿'use client';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { gsap } from 'gsap';
 import { CalEvent } from '@/lib/data';
 import { useApp } from '@/lib/store';
 import { createClient } from '@/lib/supabase/client';
 import * as db from '@/lib/supabase/db';
-import Topbar from '@/components/Topbar';
-import Icon from '@/components/Icon';
+import Topbar from '@/components/layout/Topbar';
+import Icon from '@/components/ui/Icon';
 
 const DAYS   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const MONTHS = ['January','February','March','April','May','June',

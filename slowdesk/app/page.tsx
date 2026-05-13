@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { gsap } from 'gsap';
@@ -6,11 +6,11 @@ import { createClient } from '@/lib/supabase/client';
 import { useApp } from '@/lib/store';
 import { TONE_COLORS, Task, computeProgress } from '@/lib/data';
 import * as db from '@/lib/supabase/db';
-import Topbar from '@/components/Topbar';
-import DeskScene from '@/components/DeskScene';
-import Icon from '@/components/Icon';
-import TaskModal from '@/components/TaskModal';
-import LandingPage from '@/components/LandingPage';
+import Topbar from '@/components/layout/Topbar';
+import DeskScene from '@/components/marketing/DeskScene';
+import Icon from '@/components/ui/Icon';
+import TaskModal from '@/components/tasks/TaskModal';
+import LandingPage from '@/components/marketing/LandingPage';
 
 /* ── Greeting card ─────────────────────────────────────────── */
 function GreetingCard({ tasks }: { tasks: Task[] }) {
@@ -32,7 +32,7 @@ function GreetingCard({ tasks }: { tasks: Task[] }) {
     gsap.fromTo(cardRef.current, { y: 18, opacity: 0 }, { y: 0, opacity: 1, duration: 0.55, ease: 'power3.out', delay: 0.05 });
   }, []);
 
-  const todayCount  = tasks.filter(t => t.due === 'today' && !t.done).length;
+  const todayCount  = tasks.filter(t => (t.due === 'today' || t.due === 'overdue') && !t.done).length;
   const doneCount   = tasks.filter(t => t.done).length;
   const streak      = useMemo(() => {
     const base = new Date();
@@ -175,6 +175,15 @@ function TodayRow({ task, onToggle, onDragStart, onDragOver, onDrop, onEdit, onD
         </div>
       </div>
 
+      {/* overdue badge */}
+      {task.due === 'overdue' && !task.done && (
+        <span style={{
+          fontSize: 10, fontFamily: 'var(--font-mono)', fontWeight: 700, letterSpacing: '0.05em',
+          color: '#c94f3a', background: 'rgba(201,79,58,0.10)', border: '1px solid rgba(201,79,58,0.25)',
+          padding: '2px 7px', borderRadius: 6, flexShrink: 0, textTransform: 'uppercase',
+        }}>Overdue</span>
+      )}
+
       {/* project chip */}
       <div style={{
         display: 'flex', alignItems: 'center', gap: 5,
@@ -257,7 +266,7 @@ function WeekGantt({ weekOffset }: { weekOffset: number }) {
   // tasks by due date (added first to guarantee visibility)
   tasks.forEach(t => {
     let colIdx = -1;
-    if (t.due === 'today') colIdx = todayIdx;
+    if (t.due === 'today' || t.due === 'overdue') colIdx = todayIdx;
     else if (t.due === 'tomorrow') colIdx = todayIdx + 1;
     if (colIdx >= 0 && colIdx < 5) {
       const projColor = TONE_COLORS[t.tone] || 'var(--accent)';
@@ -362,7 +371,7 @@ function TaskOverview({ tasks }: { tasks: Task[] }) {
   const done     = tasks.filter(t => t.done).length;
   const pending  = total - done;
   const highPri  = tasks.filter(t => t.priority === 'high' && !t.done).length;
-  const dueToday = tasks.filter(t => t.due === 'today' && !t.done).length;
+  const dueToday = tasks.filter(t => (t.due === 'today' || t.due === 'overdue') && !t.done).length;
   const pct      = total ? Math.round((done / total) * 100) : 0;
 
   const R = 52, STROKE = 10;
@@ -968,14 +977,14 @@ export default function DashboardPage() {
   };
 
   const PRIORITY_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 };
-  const DUE_ORDER: Record<string, number> = { today: 0, tomorrow: 1, 'this week': 2 };
+  const DUE_ORDER: Record<string, number> = { overdue: -1, today: 0, tomorrow: 1, 'this week': 2 };
   const sortedTasks = [...tasks].sort((a, b) => {
     if (sortBy === 'priority') return (PRIORITY_ORDER[a.priority ?? ''] ?? 1) - (PRIORITY_ORDER[b.priority ?? ''] ?? 1);
     if (sortBy === 'due')      return (DUE_ORDER[a.due ?? ''] ?? 9) - (DUE_ORDER[b.due ?? ''] ?? 9);
     if (sortBy === 'name')     return a.title.localeCompare(b.title);
     return 0;
   });
-  const todayTasks = sortedTasks.filter(t => t.due === 'today');
+  const todayTasks = sortedTasks.filter(t => t.due === 'today' || t.due === 'overdue');
   const todayDoneCount = todayTasks.filter(t => t.done).length;
 
   return (

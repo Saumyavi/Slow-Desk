@@ -3,7 +3,7 @@ import { useRef, useEffect, useState } from 'react';
 import { gsap } from 'gsap';
 import { Task, recurrenceLabel, nextOccurrenceDate, dateToDueBucket } from '@/lib/data';
 import { useApp } from '@/lib/store';
-import Icon from './Icon';
+import Icon from '@/components/ui/Icon';
 import type { ParseRecurrenceResult } from '@/app/api/tasks/parse-recurrence/route';
 
 interface TaskModalProps {
@@ -30,7 +30,7 @@ export default function TaskModal({ editTask, onAdd, onEdit, onClose }: TaskModa
   const isEdit = !!editTask;
   const [title, setTitle] = useState(editTask?.title ?? '');
   const [description, setDescription] = useState(editTask?.description ?? '');
-  const [due, setDue] = useState<Task['due']>(editTask?.due ?? 'today');
+  const [due, setDue] = useState<Task['due']>(editTask?.due === 'overdue' ? 'today' : (editTask?.due ?? 'today'));
   const [priority, setPriority] = useState<'high' | 'medium' | 'low'>(editTask?.priority ?? 'medium');
   const [project, setProject] = useState(editTask?.project ?? projects[0]?.name ?? '');
 

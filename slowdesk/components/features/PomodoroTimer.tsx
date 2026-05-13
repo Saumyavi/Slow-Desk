@@ -4,7 +4,7 @@ import { gsap } from 'gsap';
 import { Task } from '@/lib/data';
 import { createClient } from '@/lib/supabase/client';
 import * as db from '@/lib/supabase/db';
-import Icon from './Icon';
+import Icon from '@/components/ui/Icon';
 
 type Phase = 'work' | 'short-break' | 'long-break';
 

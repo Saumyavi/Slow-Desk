@@ -1,10 +1,10 @@
-'use client';
+﻿'use client';
 import { useState, useRef, useEffect } from 'react';
 import { gsap } from 'gsap';
 import { createClient } from '@/lib/supabase/client';
 import * as db from '@/lib/supabase/db';
-import Topbar from '@/components/Topbar';
-import Icon from '@/components/Icon';
+import Topbar from '@/components/layout/Topbar';
+import Icon from '@/components/ui/Icon';
 
 
 const ACCENT_PALETTE = ['#c1623f', '#7a9e7e', '#8b5c75', '#c9943a', '#5b8fbf'];
@@ -43,7 +43,9 @@ function toDateStr(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-const TODAY = toDateStr(new Date());
+function getToday(): string {
+  return toDateStr(new Date());
+}
 
 function computeStreak(historySet: Set<string>): number {
   const today = new Date();
@@ -402,7 +404,8 @@ function HabitRow({ habit, onToggleToday, onEdit, onToggleSubhabit }: {
   onToggleSubhabit: (habitId: string, subhabitId: string, done: boolean) => void;
 }) {
   const historySet = new Set(habit.history);
-  const todayDone  = historySet.has(TODAY);
+  const todayStr   = getToday();
+  const todayDone  = historySet.has(todayStr);
   const streak     = computeStreak(historySet);
   const heatmap    = buildHeatmap(historySet);
 
@@ -653,13 +656,14 @@ export default function HabitsPage() {
     if (!userId) return;
 
     try {
-      await db.toggleHabitDate(id, TODAY);
+      const today = getToday();
+      await db.toggleHabitDate(id, today);
 
       // Update local state
       setHabits(prev => prev.map(h => {
         if (h.id !== id) return h;
         const set = new Set(h.history);
-        set.has(TODAY) ? set.delete(TODAY) : set.add(TODAY);
+        set.has(today) ? set.delete(today) : set.add(today);
         return { ...h, history: [...set] };
       }));
     } catch (err) {
@@ -778,7 +782,7 @@ export default function HabitsPage() {
     }
   };
 
-  const doneCount = habits.filter(h => new Set(h.history).has(TODAY)).length;
+  const doneCount = habits.filter(h => new Set(h.history).has(getToday())).length;
   const pct = habits.length === 0 ? 0 : Math.round((doneCount / habits.length) * 100);
 
   const streakRanking = [...habits]

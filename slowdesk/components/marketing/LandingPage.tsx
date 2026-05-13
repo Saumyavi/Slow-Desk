@@ -1,10 +1,10 @@
 'use client';
 import { useState, useRef, useEffect } from 'react';
 import { gsap } from 'gsap';
-import Icon from './Icon';
+import Icon from '@/components/ui/Icon';
 import AuthScreen from './AuthScreen';
 
-/* ── CSS keyframes injected once ─────────────────────────── */
+/* CSS keyframes injected once */
 const LANDING_CSS = `
 @keyframes ld-float1{0%,100%{transform:translateY(0) rotate(-4deg)}50%{transform:translateY(-20px) rotate(2deg)}}
 @keyframes ld-float2{0%,100%{transform:translateY(0) rotate(6deg)}50%{transform:translateY(-16px) rotate(-2deg)}}

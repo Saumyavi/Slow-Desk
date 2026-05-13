@@ -36,12 +36,11 @@ yarn-error.log*
 # vercel
 .vercel
 
-# user database (never commit — contains password hashes)
+# user database
 .users.json
 
 # generated dev artifacts
 email-preview.html
-scripts/
 
 # typescript
 *.tsbuildinfo

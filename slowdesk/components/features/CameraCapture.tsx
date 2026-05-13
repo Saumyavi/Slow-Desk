@@ -2,7 +2,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { extractTextFromImage } from '@/lib/ocr';
 import { parseTasksFromText, ExtractedTask } from '@/lib/task-parser';
-import Icon from './Icon';
+import Icon from '@/components/ui/Icon';
 
 interface CameraCaptureProps {
   onTasksExtracted: (tasks: ExtractedTask[]) => void;
