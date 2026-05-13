@@ -18,7 +18,7 @@ export async function getHabits(userId: string) {
     emoji: h.emoji,
     goal: h.goal,
     color: h.color,
-    history: (h.habit_history || []).map((hh: any) => hh.completed_date),
+    history: (h.habit_history || []).map((hh: any) => String(hh.completed_date).slice(0, 10)),
     subhabits: (h.subhabits || []).sort((a: any, b: any) => a.position - b.position),
   }));
 }
