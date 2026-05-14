@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { Resend } from 'resend';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { sendWhatsApp } from '@/lib/twilio';
+import { placeCall } from '@/lib/twilio-voice';
 import { getMorningDigestEmail, getMorningDigestWhatsApp, getMorningDigestTemplateVars } from '@/lib/emails/morning-digest';
 
 export const runtime = 'nodejs';
@@ -21,17 +22,17 @@ export async function GET(request: Request) {
       { auth: { autoRefreshToken: false, persistSession: false } },
     );
 
-    // Fetch all users who have any notification enabled — send to all of them daily
+    // Fetch all users who have any notification enabled
     const { data: profiles, error: profilesError } = await supabaseAdmin
       .from('user_profiles')
-      .select('id, notification_email_enabled, notification_whatsapp_enabled, notification_phone');
+      .select('id, notification_email_enabled, notification_whatsapp_enabled, notification_call_enabled, notification_phone');
 
     if (profilesError) {
       return NextResponse.json({ error: 'Failed to fetch profiles' }, { status: 500 });
     }
 
     const targets = (profiles || []).filter(
-      (p: any) => p.notification_email_enabled || p.notification_whatsapp_enabled,
+      (p: any) => p.notification_email_enabled || p.notification_whatsapp_enabled || p.notification_call_enabled,
     );
 
     if (targets.length === 0) {
@@ -75,6 +76,13 @@ export async function GET(request: Request) {
         if (profile.notification_whatsapp_enabled && profile.notification_phone) {
           await sendWhatsApp({ to: profile.notification_phone, body: getMorningDigestWhatsApp(digestData) });
           sent.push('whatsapp');
+        }
+
+        if (profile.notification_call_enabled && profile.notification_phone) {
+          const baseUrl = process.env.NEXT_PUBLIC_APP_URL || new URL(request.url).origin;
+          const twimlUrl = `${baseUrl}/api/voice/twiml/start?userId=${userId}&type=morning`;
+          await placeCall(profile.notification_phone, twimlUrl);
+          sent.push('call');
         }
 
         results.push({ userId, sent, status: 'ok' });
