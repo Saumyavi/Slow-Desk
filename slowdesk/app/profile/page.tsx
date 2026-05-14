@@ -135,14 +135,16 @@ export default function ProfilePage() {
   const [photoLightbox,   setPhotoLightbox]   = useState(false);
 
   // Morning ritual state
-  const [notifEmailEnabled,   setNotifEmailEnabled]   = useState(false);
-  const [notifWaEnabled,      setNotifWaEnabled]      = useState(false);
-  const [notifPhone,          setNotifPhone]          = useState('');
-  const [notifTime,           setNotifTime]           = useState('08:00');
-  const [notifTimezone,       setNotifTimezone]       = useState('UTC');
-  const [notifSaved,          setNotifSaved]          = useState(false);
-  const [notifSaving,         setNotifSaving]         = useState(false);
-  const [ritualSaved,         setRitualSaved]         = useState(false);
+  const [notifEmailEnabled,        setNotifEmailEnabled]        = useState(false);
+  const [notifWaEnabled,           setNotifWaEnabled]           = useState(false);
+  const [notifCallEnabled,         setNotifCallEnabled]         = useState(false);
+  const [notifCallEveningEnabled,  setNotifCallEveningEnabled]  = useState(false);
+  const [notifPhone,               setNotifPhone]               = useState('');
+  const [notifTime,                setNotifTime]                = useState('08:00');
+  const [notifTimezone,            setNotifTimezone]            = useState('UTC');
+  const [notifSaved,               setNotifSaved]               = useState(false);
+  const [notifSaving,              setNotifSaving]              = useState(false);
+  const [ritualSaved,              setRitualSaved]              = useState(false);
   const [hoveredAccent,       setHoveredAccent]       = useState<string | null>(null);
 
   const [exporting, setExporting] = useState<string | null>(null);
@@ -248,12 +250,14 @@ export default function ProfilePage() {
       if (!data.user) return;
       const { data: profile } = await supabase
         .from('user_profiles')
-        .select('notification_email_enabled, notification_whatsapp_enabled, notification_phone, notification_time, notification_timezone, avatar_url')
+        .select('notification_email_enabled, notification_whatsapp_enabled, notification_call_enabled, notification_call_evening_enabled, notification_phone, notification_time, notification_timezone, avatar_url')
         .eq('id', data.user.id)
         .single();
       if (!profile) return;
       setNotifEmailEnabled(profile.notification_email_enabled ?? false);
       setNotifWaEnabled(profile.notification_whatsapp_enabled ?? false);
+      setNotifCallEnabled(profile.notification_call_enabled ?? false);
+      setNotifCallEveningEnabled(profile.notification_call_evening_enabled ?? false);
       setNotifPhone(profile.notification_phone ?? '');
       setNotifTime(profile.notification_time ?? '08:00');
       setNotifTimezone(profile.notification_timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'UTC');
@@ -269,12 +273,14 @@ export default function ProfilePage() {
       const { data } = await supabase.auth.getUser();
       if (!data.user) return;
       await supabase.from('user_profiles').update({
-        notification_email_enabled: notifEmailEnabled,
-        notification_whatsapp_enabled: notifWaEnabled,
-        notification_phone: notifPhone || null,
-        notification_time: notifTime,
-        notification_timezone: notifTimezone,
-        updated_at: new Date().toISOString(),
+        notification_email_enabled:        notifEmailEnabled,
+        notification_whatsapp_enabled:     notifWaEnabled,
+        notification_call_enabled:         notifCallEnabled,
+        notification_call_evening_enabled: notifCallEveningEnabled,
+        notification_phone:                notifPhone || null,
+        notification_time:                 notifTime,
+        notification_timezone:             notifTimezone,
+        updated_at:                        new Date().toISOString(),
       }).eq('id', data.user.id);
       setNotifSaved(true);
       setTimeout(() => setNotifSaved(false), 2500);
@@ -802,6 +808,18 @@ export default function ProfilePage() {
                 on: notifWaEnabled, set: setNotifWaEnabled,
                 name: 'WhatsApp message', sub: 'a single chat ping',
                 icon: (<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>),
+              },
+              {
+                id: 'call-morning' as const,
+                on: notifCallEnabled, set: setNotifCallEnabled,
+                name: 'Morning voice call', sub: 'agent reads & edits tasks',
+                icon: (<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.4 2 2 0 0 1 3.6 1.22h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.84a16 16 0 0 0 6.29 6.29l1.28-.95a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7a2 2 0 0 1 1.71 2.01z"/></svg>),
+              },
+              {
+                id: 'call-evening' as const,
+                on: notifCallEveningEnabled, set: setNotifCallEveningEnabled,
+                name: 'Evening voice call', sub: 'day recap + AI insights',
+                icon: (<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>),
               },
             ]).map(ch => (
               <button key={ch.id} onClick={() => ch.set(!ch.on)} style={{

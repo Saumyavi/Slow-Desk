@@ -41,6 +41,7 @@ yarn-error.log*
 
 # generated dev artifacts
 email-preview.html
+slowdesk-overview.html
 
 # typescript
 *.tsbuildinfo

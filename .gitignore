@@ -7,3 +7,6 @@
 # Design bundle extraction artifacts
 todoist__*
 _design_*
+
+# Local planning docs
+VOICE_AGENT_PLAN.md
