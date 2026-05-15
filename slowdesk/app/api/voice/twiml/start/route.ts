@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { generateEveningSummary } from '@/lib/voice-agent';
+import { generateEveningSummary, VoiceHabit, CallMemoryEntry } from '@/lib/voice-agent';
 
 export const runtime = 'nodejs';
 
@@ -30,6 +30,28 @@ function gatherTwiml(spokenText: string, actionUrl: string, noCaptureText: strin
 </Response>`;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function fetchHabitsForUser(supabase: any, userId: string, todayStr: string): Promise<VoiceHabit[]> {
+  const { data: habitRows } = await supabase
+    .from('habits')
+    .select('id, name, emoji, habit_history(completed_date)')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
+
+  if (!habitRows) return [];
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return habitRows.map((h: any) => ({
+    id: h.id,
+    name: h.name,
+    emoji: h.emoji ?? '✅',
+    completedToday: (h.habit_history || []).some(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (hh: any) => String(hh.completed_date).slice(0, 10) === todayStr,
+    ),
+  }));
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const userId  = searchParams.get('userId');
@@ -48,11 +70,12 @@ export async function GET(request: NextRequest) {
 
   const { data: profile } = await supabase
     .from('user_profiles')
-    .select('name')
+    .select('name, voice_memory')
     .eq('id', userId)
     .single();
 
   const userName  = profile?.name ?? 'there';
+  const memory: CallMemoryEntry[] = profile?.voice_memory ?? [];
   const today     = new Date();
   const todayStr  = today.toISOString().slice(0, 10);
   const dateLabel = today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
@@ -61,8 +84,10 @@ export async function GET(request: NextRequest) {
   handleUrl.pathname = '/api/voice/twiml/handle';
   handleUrl.search   = '';
 
+  const habits = await fetchHabitsForUser(supabase, userId, todayStr);
+
   if (type === 'evening') {
-    return handleEveningStart(supabase, userId, userName, todayStr, callSid, handleUrl.toString());
+    return handleEveningStart(supabase, userId, userName, todayStr, callSid, handleUrl.toString(), habits, memory);
   }
 
   // ── Morning flow ──────────────────────────────────────────────
@@ -75,17 +100,18 @@ export async function GET(request: NextRequest) {
     .limit(20);
 
   const tasks = (taskRows || [])
-    .filter(t => t.due_date ? t.due_date <= todayStr : t.due === 'today' || t.due === 'overdue')
+    .filter((t: { due_date: string; due: string }) => t.due_date ? t.due_date <= todayStr : t.due === 'today' || t.due === 'overdue')
     .slice(0, 10);
 
-  // Persist session keyed by Twilio CallSid
   const { error: sessionError } = await supabase.from('voice_sessions').insert({
-    call_sid:   callSid,
-    user_id:    userId,
-    type:       'morning',
-    messages:   [],
-    tasks:      tasks.map(t => ({ id: t.id, title: t.title, priority: t.priority, due: t.due, done: t.done })),
-    status:     'active',
+    call_sid: callSid,
+    user_id:  userId,
+    type:     'morning',
+    messages: [],
+    tasks:    tasks.map((t: { id: string; title: string; priority: string; due: string; done: boolean }) => ({ id: t.id, title: t.title, priority: t.priority, due: t.due, done: t.done })),
+    habits,
+    memory,
+    status:   'active',
   });
   if (sessionError) console.error('voice_sessions insert failed:', sessionError.message);
 
@@ -94,16 +120,22 @@ export async function GET(request: NextRequest) {
   if (tasks.length === 0) {
     taskSpeech = 'Your slate is completely clear today — enjoy the freedom!';
   } else {
-    const high = tasks.filter(t => t.priority === 'high');
-    const med  = tasks.filter(t => t.priority === 'medium');
-    const low  = tasks.filter(t => t.priority === 'low');
+    const high = tasks.filter((t: { priority: string }) => t.priority === 'high');
+    const med  = tasks.filter((t: { priority: string }) => t.priority === 'medium');
+    const low  = tasks.filter((t: { priority: string }) => t.priority === 'low');
     taskSpeech = `You have ${tasks.length} task${tasks.length !== 1 ? 's' : ''} today. `;
-    if (high.length) taskSpeech += `High priority: ${high.map(t => t.title).join(', ')}. `;
-    if (med.length)  taskSpeech += `Medium: ${med.map(t => t.title).join(', ')}. `;
-    if (low.length)  taskSpeech += `Lower priority: ${low.map(t => t.title).join('. ')}.`;
+    if (high.length) taskSpeech += `High priority: ${high.map((t: { title: string }) => t.title).join(', ')}. `;
+    if (med.length)  taskSpeech += `Medium: ${med.map((t: { title: string }) => t.title).join(', ')}. `;
+    if (low.length)  taskSpeech += `Lower priority: ${low.map((t: { title: string }) => t.title).join('. ')}.`;
   }
 
-  const greeting = esc(`Good morning, ${userName}! Today is ${dateLabel}. ${taskSpeech}`);
+  // Build habit check-in line
+  const pendingHabits = habits.filter(h => !h.completedToday);
+  const habitSpeech = pendingHabits.length > 0
+    ? ` You have ${pendingHabits.length} habit${pendingHabits.length !== 1 ? 's' : ''} pending: ${pendingHabits.map(h => h.name).join(', ')}.`
+    : habits.length > 0 ? ` All ${habits.length} habits already done — great start!` : '';
+
+  const greeting = esc(`Good morning, ${userName}! Today is ${dateLabel}. ${taskSpeech}${habitSpeech}`);
   const prompt   = esc(`Would you like to make any changes, or shall I let you get started?`);
   const fallback = esc(`I didn't catch that. Have a wonderful day, ${userName}!`);
 
@@ -118,6 +150,8 @@ async function handleEveningStart(
   todayStr: string,
   callSid: string,
   handleUrl: string,
+  habits: VoiceHabit[],
+  memory: CallMemoryEntry[],
 ) {
   const { data: completedRows } = await supabase
     .from('tasks')
@@ -142,7 +176,7 @@ async function handleEveningStart(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const pendingTasks   = pendingToday.map((t: any) => ({ id: t.id, title: t.title, priority: t.priority, due: t.due, done: false }));
 
-  const summary = await generateEveningSummary(userName, completedTasks, pendingTasks);
+  const summary = await generateEveningSummary(userName, completedTasks, pendingTasks, memory);
 
   const { error: sessionError } = await supabase.from('voice_sessions').insert({
     call_sid: callSid,
@@ -150,6 +184,8 @@ async function handleEveningStart(
     type:     'evening',
     messages: [],
     tasks:    pendingTasks,
+    habits,
+    memory,
     status:   'active',
   });
   if (sessionError) console.error('voice_sessions insert failed:', sessionError.message);

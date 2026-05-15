@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { runAgentTurn } from '@/lib/voice-agent';
+import { runAgentTurn, saveCallMemory } from '@/lib/voice-agent';
 
 export const runtime = 'nodejs';
 
@@ -70,6 +70,8 @@ export async function POST(request: NextRequest) {
         type:     session.type,
         messages: session.messages ?? [],
         tasks:    session.tasks ?? [],
+        habits:   session.habits ?? [],
+        memory:   session.memory ?? [],
       },
       speechResult,
     );
@@ -82,6 +84,13 @@ export async function POST(request: NextRequest) {
         updated_at: new Date().toISOString(),
       })
       .eq('call_sid', callSid);
+
+    if (shouldHangUp) {
+      // Fire-and-forget — don't block the TwiML response
+      saveCallMemory(session.user_id, session.type, updatedMessages).catch(
+        err => console.error('saveCallMemory failed:', err),
+      );
+    }
 
     const spokenText = esc(response);
     const actionUrl  = esc(new URL(request.url).toString());
