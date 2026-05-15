@@ -79,15 +79,15 @@ export async function GET(request: NextRequest) {
     .slice(0, 10);
 
   // Persist session keyed by Twilio CallSid
-  await supabase.from('voice_sessions').upsert({
+  const { error: sessionError } = await supabase.from('voice_sessions').insert({
     call_sid:   callSid,
     user_id:    userId,
     type:       'morning',
     messages:   [],
     tasks:      tasks.map(t => ({ id: t.id, title: t.title, priority: t.priority, due: t.due, done: t.done })),
     status:     'active',
-    updated_at: new Date().toISOString(),
-  }, { onConflict: 'call_sid' });
+  });
+  if (sessionError) console.error('voice_sessions insert failed:', sessionError.message);
 
   // Build task announcement
   let taskSpeech: string;
@@ -144,15 +144,15 @@ async function handleEveningStart(
 
   const summary = await generateEveningSummary(userName, completedTasks, pendingTasks);
 
-  await supabase.from('voice_sessions').upsert({
-    call_sid:   callSid,
-    user_id:    userId,
-    type:       'evening',
-    messages:   [],
-    tasks:      pendingTasks,
-    status:     'active',
-    updated_at: new Date().toISOString(),
-  }, { onConflict: 'call_sid' });
+  const { error: sessionError } = await supabase.from('voice_sessions').insert({
+    call_sid: callSid,
+    user_id:  userId,
+    type:     'evening',
+    messages: [],
+    tasks:    pendingTasks,
+    status:   'active',
+  });
+  if (sessionError) console.error('voice_sessions insert failed:', sessionError.message);
 
   const spoken   = esc(summary);
   const prompt   = esc(pendingTasks.length > 0 ? 'Would you like to reschedule any of these, or are you done for the day?' : 'Have a restful evening!');
