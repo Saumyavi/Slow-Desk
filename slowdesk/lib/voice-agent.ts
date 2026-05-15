@@ -27,6 +27,19 @@ export interface VoiceTask {
   done: boolean;
 }
 
+export interface VoiceHabit {
+  id: string;
+  name: string;
+  emoji: string;
+  completedToday: boolean;
+}
+
+export interface CallMemoryEntry {
+  date: string;
+  type: 'morning' | 'evening';
+  summary: string;
+}
+
 export interface AgentMessage {
   role: 'user' | 'assistant' | 'tool';
   content: string;
@@ -39,6 +52,8 @@ export interface AgentSession {
   type: 'morning' | 'evening';
   messages: AgentMessage[];
   tasks: VoiceTask[];
+  habits: VoiceHabit[];
+  memory: CallMemoryEntry[];
 }
 
 export interface AgentTurnResult {
@@ -48,6 +63,7 @@ export interface AgentTurnResult {
 }
 
 const TOOLS: Groq.Chat.ChatCompletionTool[] = [
+  // ── Task tools ──────────────────────────────────────────────
   {
     type: 'function',
     function: {
@@ -55,9 +71,7 @@ const TOOLS: Groq.Chat.ChatCompletionTool[] = [
       description: 'Mark a task as done/completed',
       parameters: {
         type: 'object',
-        properties: {
-          task_id: { type: 'string', description: 'The task ID to mark complete' },
-        },
+        properties: { task_id: { type: 'string' } },
         required: ['task_id'],
       },
     },
@@ -84,9 +98,7 @@ const TOOLS: Groq.Chat.ChatCompletionTool[] = [
       description: 'Permanently delete a task',
       parameters: {
         type: 'object',
-        properties: {
-          task_id: { type: 'string' },
-        },
+        properties: { task_id: { type: 'string' } },
         required: ['task_id'],
       },
     },
@@ -110,12 +122,68 @@ const TOOLS: Groq.Chat.ChatCompletionTool[] = [
   {
     type: 'function',
     function: {
-      name: 'end_conversation',
-      description: 'End the call. Call this when the user says goodbye, they are done, or there is nothing more to do.',
+      name: 'set_task_time',
+      description: 'Set a specific time for a task, e.g. "10:00 AM"',
       parameters: {
         type: 'object',
         properties: {
-          farewell: { type: 'string', description: 'Short, warm goodbye message to speak aloud' },
+          task_id: { type: 'string' },
+          time:    { type: 'string', description: 'Time in format like "9:00 AM" or "2:30 PM"' },
+        },
+        required: ['task_id', 'time'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'change_priority',
+      description: 'Change the priority of a task',
+      parameters: {
+        type: 'object',
+        properties: {
+          task_id:  { type: 'string' },
+          priority: { type: 'string', enum: ['high', 'medium', 'low'] },
+        },
+        required: ['task_id', 'priority'],
+      },
+    },
+  },
+  // ── Habit tools ─────────────────────────────────────────────
+  {
+    type: 'function',
+    function: {
+      name: 'complete_habit',
+      description: 'Mark a habit as completed for today',
+      parameters: {
+        type: 'object',
+        properties: { habit_id: { type: 'string' } },
+        required: ['habit_id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'skip_habit',
+      description: 'Skip a habit for today (will not count against streak)',
+      parameters: {
+        type: 'object',
+        properties: { habit_id: { type: 'string' } },
+        required: ['habit_id'],
+      },
+    },
+  },
+  // ── Call control ─────────────────────────────────────────────
+  {
+    type: 'function',
+    function: {
+      name: 'end_conversation',
+      description: 'End the call. Use when user says goodbye or is done.',
+      parameters: {
+        type: 'object',
+        properties: {
+          farewell: { type: 'string', description: 'Short warm goodbye to speak aloud' },
         },
         required: ['farewell'],
       },
@@ -130,56 +198,68 @@ async function executeTool(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: any,
 ): Promise<string> {
+  const today = new Date().toISOString().slice(0, 10);
+
   switch (name) {
     case 'complete_task': {
       const { error } = await supabase
         .from('tasks')
         .update({ done: true, updated_at: new Date().toISOString() })
-        .eq('id', args.task_id)
-        .eq('user_id', userId);
+        .eq('id', args.task_id).eq('user_id', userId);
       if (error) console.error('complete_task failed:', error.message);
-      return error ? `Failed to complete task: ${error.message}` : 'Task marked as complete.';
+      return error ? `Failed: ${error.message}` : 'Task marked as complete.';
     }
     case 'reschedule_task': {
       const due = args.due as DueBucket;
       const { error } = await supabase
         .from('tasks')
         .update({ due, due_date: dueToDueDate(due), updated_at: new Date().toISOString() })
-        .eq('id', args.task_id)
-        .eq('user_id', userId);
+        .eq('id', args.task_id).eq('user_id', userId);
       if (error) console.error('reschedule_task failed:', error.message);
-      return error ? `Failed to reschedule: ${error.message}` : `Task rescheduled to ${args.due}.`;
+      return error ? `Failed: ${error.message}` : `Task rescheduled to ${due}.`;
     }
     case 'delete_task': {
       const { error } = await supabase
-        .from('tasks')
-        .delete()
-        .eq('id', args.task_id)
-        .eq('user_id', userId);
+        .from('tasks').delete().eq('id', args.task_id).eq('user_id', userId);
       if (error) console.error('delete_task failed:', error.message);
-      return error ? `Failed to delete task: ${error.message}` : 'Task deleted.';
+      return error ? `Failed: ${error.message}` : 'Task deleted.';
     }
     case 'create_task': {
       const id  = `t${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       const due = (args.due ?? 'today') as DueBucket;
       const { error } = await supabase.from('tasks').insert({
-        id,
-        user_id:  userId,
-        title:    args.title,
-        done:     false,
-        priority: args.priority ?? 'medium',
-        due,
-        due_date: dueToDueDate(due),
-        tone:     'terra',
-        attach:   0,
-        time:     null,
+        id, user_id: userId, title: args.title, done: false,
+        priority: args.priority ?? 'medium', due, due_date: dueToDueDate(due),
+        tone: 'terra', attach: 0, time: null,
       });
-      if (error) {
-        console.error('create_task failed:', error.message);
-        return `Failed to create task: ${error.message}`;
-      }
-      return `Task "${args.title}" created.`;
+      if (error) console.error('create_task failed:', error.message);
+      return error ? `Failed: ${error.message}` : `Task "${args.title}" created.`;
     }
+    case 'set_task_time': {
+      const { error } = await supabase
+        .from('tasks')
+        .update({ time: args.time, updated_at: new Date().toISOString() })
+        .eq('id', args.task_id).eq('user_id', userId);
+      if (error) console.error('set_task_time failed:', error.message);
+      return error ? `Failed: ${error.message}` : `Task time set to ${args.time}.`;
+    }
+    case 'change_priority': {
+      const { error } = await supabase
+        .from('tasks')
+        .update({ priority: args.priority, updated_at: new Date().toISOString() })
+        .eq('id', args.task_id).eq('user_id', userId);
+      if (error) console.error('change_priority failed:', error.message);
+      return error ? `Failed: ${error.message}` : `Priority changed to ${args.priority}.`;
+    }
+    case 'complete_habit': {
+      const { error } = await supabase
+        .from('habit_history')
+        .insert({ habit_id: args.habit_id, completed_date: today });
+      if (error) console.error('complete_habit failed:', error.message);
+      return error ? `Failed: ${error.message}` : 'Habit marked complete for today.';
+    }
+    case 'skip_habit':
+      return 'Habit skipped for today.';
     case 'end_conversation':
       return 'Conversation ended.';
     default:
@@ -207,28 +287,37 @@ export async function runAgentTurn(
     ? session.tasks.map((t, i) => `${i + 1}. [ID:${t.id}] "${t.title}" — ${t.priority} priority, due: ${t.due}`).join('\n')
     : 'No tasks today.';
 
+  const habitList = session.habits.length
+    ? session.habits.map((h, i) => `${i + 1}. [ID:${h.id}] ${h.emoji} ${h.name}${h.completedToday ? ' (already done today)' : ''}`).join('\n')
+    : 'No habits set up.';
+
+  const memoryContext = session.memory.length
+    ? `\nPast call patterns (use to personalise responses):\n${session.memory.slice(0, 5).map(m => `- ${m.date} ${m.type}: ${m.summary}`).join('\n')}`
+    : '';
+
   const systemPrompt = `You are a calm, friendly voice assistant for SlowDesk, a productivity app.
 You are on a phone call — keep every response SHORT (1-2 sentences max). No lists, no markdown.
 Speak naturally like a helpful human, not a robot.
 
-Today's tasks (use these IDs when calling functions):
+Today's tasks (use IDs when calling functions):
 ${taskList}
 
+Today's habits:
+${habitList}
+${memoryContext}
+
 Rules:
-- Use function calls immediately when the user requests task changes.
+- Use function calls immediately when the user requests changes.
 - After an action, briefly confirm and ask if there is anything else.
+- For habits: ask if they completed yesterday's habits during morning calls if not already done.
 - Call end_conversation when the user says they are done, goodbye, or similar.
-- Never say "I am an AI" — just be helpful and warm.`;
+- If you notice a pattern from memory (e.g. user keeps rescheduling the same task), gently mention it.`;
 
   const messages: Groq.Chat.ChatCompletionMessageParam[] = [
     { role: 'system', content: systemPrompt },
     ...session.messages.map(m => {
-      if (m.role === 'tool') {
-        return { role: 'tool' as const, content: m.content, tool_call_id: m.tool_call_id! };
-      }
-      if (m.role === 'assistant' && m.tool_calls) {
-        return { role: 'assistant' as const, content: m.content ?? null, tool_calls: m.tool_calls };
-      }
+      if (m.role === 'tool') return { role: 'tool' as const, content: m.content, tool_call_id: m.tool_call_id! };
+      if (m.role === 'assistant' && m.tool_calls) return { role: 'assistant' as const, content: m.content ?? null, tool_calls: m.tool_calls };
       return { role: m.role as 'user' | 'assistant', content: m.content };
     }),
     { role: 'user', content: userSpeech },
@@ -243,11 +332,7 @@ Rules:
   let finalResponse = '';
 
   let completion = await client.chat.completions.create({
-    model: MODEL,
-    messages,
-    tools: TOOLS,
-    tool_choice: 'auto',
-    temperature: 0.4,
+    model: MODEL, messages, tools: TOOLS, tool_choice: 'auto', temperature: 0.4,
   });
 
   while (completion.choices[0]?.finish_reason === 'tool_calls') {
@@ -259,14 +344,11 @@ Rules:
 
     for (const call of toolCalls) {
       const args = JSON.parse(call.function.arguments) as Record<string, string>;
-
       if (call.function.name === 'end_conversation') {
         finalResponse = args.farewell ?? 'Have a wonderful day!';
         shouldHangUp = true;
       }
-
       const result = await executeTool(call.function.name, args, session.userId, supabase);
-
       messages.push({ role: 'tool', content: result, tool_call_id: call.id });
       updatedMessages.push({ role: 'tool', content: result, tool_call_id: call.id });
     }
@@ -274,11 +356,7 @@ Rules:
     if (shouldHangUp) break;
 
     completion = await client.chat.completions.create({
-      model: MODEL,
-      messages,
-      tools: TOOLS,
-      tool_choice: 'auto',
-      temperature: 0.4,
+      model: MODEL, messages, tools: TOOLS, tool_choice: 'auto', temperature: 0.4,
     });
   }
 
@@ -290,10 +368,73 @@ Rules:
   return { response: finalResponse, shouldHangUp, updatedMessages };
 }
 
+export async function saveCallMemory(
+  userId: string,
+  type: 'morning' | 'evening',
+  messages: AgentMessage[],
+): Promise<void> {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) return;
+
+  try {
+    const client = new Groq({ apiKey });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const supabase: any = createSupabaseClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { auth: { autoRefreshToken: false, persistSession: false } },
+    );
+
+    const transcript = messages
+      .filter(m => m.role === 'user' || (m.role === 'assistant' && !m.tool_calls))
+      .map(m => `${m.role === 'user' ? 'User' : 'Agent'}: ${m.content}`)
+      .join('\n');
+
+    if (!transcript.trim()) return;
+
+    const res = await client.chat.completions.create({
+      model: MODEL,
+      messages: [{
+        role: 'user',
+        content: `Summarise this voice assistant call in ONE sentence (max 20 words). Focus on what actions were taken or patterns noticed.\n\n${transcript}`,
+      }],
+      temperature: 0.3,
+    });
+
+    const summary = res.choices[0]?.message?.content?.trim() ?? '';
+    if (!summary) return;
+
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('voice_memory')
+      .eq('id', userId)
+      .single();
+
+    const existing: CallMemoryEntry[] = profile?.voice_memory ?? [];
+    const newEntry: CallMemoryEntry = {
+      date: new Date().toISOString().slice(0, 10),
+      type,
+      summary,
+    };
+
+    // Keep last 10 entries
+    const updated = [newEntry, ...existing].slice(0, 10);
+
+    await supabase
+      .from('user_profiles')
+      .update({ voice_memory: updated })
+      .eq('id', userId);
+
+  } catch (err) {
+    console.error('saveCallMemory failed:', err);
+  }
+}
+
 export async function generateEveningSummary(
   userName: string,
   completedTasks: VoiceTask[],
   pendingTasks: VoiceTask[],
+  memory: CallMemoryEntry[],
 ): Promise<string> {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) {
@@ -305,15 +446,20 @@ export async function generateEveningSummary(
   const client = new Groq({ apiKey });
   const completed = completedTasks.map(t => t.title).join(', ') || 'none';
   const pending   = pendingTasks.map(t => t.title).join(', ')   || 'none';
-
-  const prompt = `Write a warm, encouraging evening summary for ${userName}.
-Completed today: ${completed}.
-Still pending: ${pending}.
-Keep it to 3-4 sentences, voice-friendly (no lists, no markdown). Include one short improvement tip for tomorrow.`;
+  const memCtx    = memory.length
+    ? `Recent patterns: ${memory.slice(0, 3).map(m => m.summary).join('; ')}.`
+    : '';
 
   const res = await client.chat.completions.create({
     model: MODEL,
-    messages: [{ role: 'user', content: prompt }],
+    messages: [{
+      role: 'user',
+      content: `Write a warm, encouraging evening summary for ${userName}.
+Completed today: ${completed}.
+Still pending: ${pending}.
+${memCtx}
+Keep it to 3-4 sentences, voice-friendly (no lists, no markdown). Include one personalised improvement tip based on their patterns if available, otherwise a general tip.`,
+    }],
     temperature: 0.6,
   });
 

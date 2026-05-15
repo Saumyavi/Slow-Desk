@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const pendingTasks   = pendingToday.map((t: any)   => ({ id: t.id, title: t.title, priority: t.priority, due: t.due, done: false }));
 
-    const summary = await generateEveningSummary(userName, completedTasks, pendingTasks);
+    const summary = await generateEveningSummary(userName, completedTasks, pendingTasks, []);
 
     return NextResponse.json({
       type: 'evening',
@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
   }
 
   const { response, shouldHangUp, updatedMessages } = await runAgentTurn(
-    { userId, type, messages, tasks },
+    { userId, type, messages, tasks, habits: [], memory: [] },
     message,
   );
 
