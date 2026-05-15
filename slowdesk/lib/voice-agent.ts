@@ -132,34 +132,37 @@ async function executeTool(
 ): Promise<string> {
   switch (name) {
     case 'complete_task': {
-      await supabase
+      const { error } = await supabase
         .from('tasks')
         .update({ done: true, updated_at: new Date().toISOString() })
         .eq('id', args.task_id)
         .eq('user_id', userId);
-      return 'Task marked as complete.';
+      if (error) console.error('complete_task failed:', error.message);
+      return error ? `Failed to complete task: ${error.message}` : 'Task marked as complete.';
     }
     case 'reschedule_task': {
       const due = args.due as DueBucket;
-      await supabase
+      const { error } = await supabase
         .from('tasks')
         .update({ due, due_date: dueToDueDate(due), updated_at: new Date().toISOString() })
         .eq('id', args.task_id)
         .eq('user_id', userId);
-      return `Task rescheduled to ${args.due}.`;
+      if (error) console.error('reschedule_task failed:', error.message);
+      return error ? `Failed to reschedule: ${error.message}` : `Task rescheduled to ${args.due}.`;
     }
     case 'delete_task': {
-      await supabase
+      const { error } = await supabase
         .from('tasks')
         .delete()
         .eq('id', args.task_id)
         .eq('user_id', userId);
-      return 'Task deleted.';
+      if (error) console.error('delete_task failed:', error.message);
+      return error ? `Failed to delete task: ${error.message}` : 'Task deleted.';
     }
     case 'create_task': {
       const id  = `t${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       const due = (args.due ?? 'today') as DueBucket;
-      await supabase.from('tasks').insert({
+      const { error } = await supabase.from('tasks').insert({
         id,
         user_id:  userId,
         title:    args.title,
@@ -167,7 +170,14 @@ async function executeTool(
         priority: args.priority ?? 'medium',
         due,
         due_date: dueToDueDate(due),
+        tone:     'terra',
+        attach:   0,
+        time:     null,
       });
+      if (error) {
+        console.error('create_task failed:', error.message);
+        return `Failed to create task: ${error.message}`;
+      }
       return `Task "${args.title}" created.`;
     }
     case 'end_conversation':
