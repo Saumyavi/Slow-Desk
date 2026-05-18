@@ -655,19 +655,27 @@ export default function HabitsPage() {
   const onToggleToday = async (id: string) => {
     if (!userId) return;
 
-    try {
-      const today = getToday();
-      await db.toggleHabitDate(id, today);
+    const today = getToday();
 
-      // Update local state
+    // Optimistic local update so the cell flips immediately.
+    setHabits(prev => prev.map(h => {
+      if (h.id !== id) return h;
+      const set = new Set(h.history);
+      set.has(today) ? set.delete(today) : set.add(today);
+      return { ...h, history: [...set] };
+    }));
+
+    try {
+      await db.toggleHabitDate(id, today);
+    } catch (err) {
+      console.error('Failed to toggle habit:', err);
+      // Revert on failure so the streak board doesn't drift from the DB.
       setHabits(prev => prev.map(h => {
         if (h.id !== id) return h;
         const set = new Set(h.history);
         set.has(today) ? set.delete(today) : set.add(today);
         return { ...h, history: [...set] };
       }));
-    } catch (err) {
-      console.error('Failed to toggle habit:', err);
     }
   };
 
