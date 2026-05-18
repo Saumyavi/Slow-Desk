@@ -66,17 +66,20 @@ export async function deleteHabit(userId: string, habitId: string) {
 export async function toggleHabitDate(habitId: string, date: string) {
   const supabase = getClient();
 
-  const { data: existing } = await supabase
+  const { data: existing, error: selectError } = await supabase
     .from('habit_history')
     .select('id')
     .eq('habit_id', habitId)
     .eq('completed_date', date)
     .maybeSingle();
+  if (selectError) throw selectError;
 
   if (existing) {
-    await supabase.from('habit_history').delete().eq('id', existing.id);
+    const { error } = await supabase.from('habit_history').delete().eq('id', existing.id);
+    if (error) throw error;
   } else {
-    await supabase.from('habit_history').insert({ habit_id: habitId, completed_date: date });
+    const { error } = await supabase.from('habit_history').insert({ habit_id: habitId, completed_date: date });
+    if (error) throw error;
   }
   return true;
 }

@@ -1,0 +1,578 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Slowdesk · A calm workspace</title>
+<meta name="description" content="Slowdesk — features, tech stack, and architecture of a calm personal productivity workspace with an AI voice agent." />
+<style>
+  /* ───────────────────────────────────────── Tokens ── */
+  :root{
+    --ink:#1a1814;
+    --ink-soft:#5a554d;
+    --ink-faint:#9a9489;
+    --bg:#f6f1e8;
+    --bg-sunk:#efe7d8;
+    --line:#e3d9c4;
+    --line-soft:#ece3d0;
+
+    --terracotta:#c9633d;
+    --terracotta-soft:#f1c5b2;
+    --sage:#7a9472;
+    --sage-soft:#cadec3;
+    --plum:#8a5a78;
+    --plum-soft:#e1cad9;
+    --butter:#e3b94e;
+    --butter-soft:#f5e2a8;
+    --sky:#5b8fbf;
+    --sky-soft:#c5dcef;
+    --ink-accent:#3a3530;
+
+    --font-display: 'Instrument Serif', 'Cormorant Garamond', Georgia, serif;
+    --font-sans: 'Geist', 'Inter', system-ui, -apple-system, sans-serif;
+    --font-mono: 'JetBrains Mono', 'Geist Mono', ui-monospace, monospace;
+  }
+
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:var(--font-sans);line-height:1.6;-webkit-font-smoothing:antialiased}
+  body{
+    background:
+      radial-gradient(1200px 800px at 80% -10%, var(--butter-soft) 0%, transparent 55%),
+      radial-gradient(900px 700px at -10% 30%, var(--terracotta-soft) 0%, transparent 50%),
+      radial-gradient(1100px 700px at 50% 110%, var(--sage-soft) 0%, transparent 55%),
+      var(--bg);
+    background-attachment: fixed;
+    overflow-x:hidden;
+  }
+
+  /* film-grain overlay */
+  body::before{
+    content:'';position:fixed;inset:0;pointer-events:none;z-index:1;opacity:.04;mix-blend-mode:multiply;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.6 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  }
+
+  a{color:inherit}
+
+  /* ───────────────────────────────────────── Layout helpers ── */
+  .container{max-width:1180px;margin:0 auto;padding:0 28px;position:relative;z-index:2}
+  section{padding:120px 0;position:relative}
+  .eyebrow{font-family:var(--font-mono);font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:18px;display:inline-flex;align-items:center;gap:10px}
+  .eyebrow::before{content:'';width:24px;height:1px;background:var(--ink-soft)}
+  h1,h2,h3{font-family:var(--font-display);font-weight:400;letter-spacing:-.01em;line-height:1.05;margin:0}
+  h2{font-size:clamp(36px,5.5vw,68px);margin-bottom:18px}
+  h3{font-size:24px;line-height:1.25;margin-bottom:8px}
+  p{color:var(--ink-soft);font-size:16px;max-width:62ch}
+  .lead{font-size:19px;line-height:1.55;color:var(--ink-soft);max-width:62ch}
+
+  /* ───────────────────────────────────────── Nav ── */
+  nav.top{
+    position:sticky;top:0;z-index:50;
+    backdrop-filter:saturate(1.4) blur(14px);
+    -webkit-backdrop-filter:saturate(1.4) blur(14px);
+    background:rgba(246,241,232,.72);
+    border-bottom:1px solid var(--line-soft);
+  }
+  nav.top .inner{display:flex;align-items:center;justify-content:space-between;height:62px}
+  nav.top .brand{display:flex;align-items:center;gap:12px;font-family:var(--font-mono);font-size:13px;letter-spacing:.16em;text-transform:uppercase}
+  nav.top .brand .dot{width:10px;height:10px;border-radius:50%;background:linear-gradient(135deg,var(--terracotta),var(--plum));box-shadow:0 0 0 4px var(--terracotta-soft)}
+  nav.top ul{display:flex;gap:28px;list-style:none;margin:0;padding:0;font-family:var(--font-mono);font-size:11.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-soft)}
+  nav.top ul a{text-decoration:none;transition:color .2s}
+  nav.top ul a:hover{color:var(--terracotta)}
+  @media(max-width:720px){nav.top ul{display:none}}
+
+  /* ───────────────────────────────────────── Hero ── */
+  .hero{padding:140px 0 100px;text-align:center;position:relative;overflow:hidden}
+  .hero h1{font-size:clamp(56px,10vw,130px);letter-spacing:-.025em;line-height:.95;margin-bottom:24px}
+  .hero h1 .ital{font-style:italic;color:var(--terracotta);position:relative;display:inline-block;animation:soft-rise 1.4s ease-out both .15s}
+  .hero h1 .word{display:inline-block;animation:soft-rise 1.1s ease-out both}
+  .hero h1 .w1{animation-delay:0s}
+  .hero h1 .w2{animation-delay:.1s}
+  .hero h1 .w3{animation-delay:.2s}
+  .hero .sub{font-size:19px;color:var(--ink-soft);max-width:580px;margin:0 auto 36px;animation:soft-rise 1.2s ease-out both .35s}
+  .hero .cta{display:inline-flex;gap:14px;animation:soft-rise 1.2s ease-out both .5s}
+  .btn{
+    display:inline-flex;align-items:center;gap:10px;
+    padding:13px 22px;border-radius:999px;text-decoration:none;
+    font-family:var(--font-mono);font-size:12px;letter-spacing:.16em;text-transform:uppercase;
+    transition:transform .25s ease, box-shadow .25s ease, background .25s ease;
+  }
+  .btn.primary{background:var(--ink);color:var(--bg);box-shadow:0 14px 30px -12px rgba(0,0,0,.4)}
+  .btn.primary:hover{transform:translateY(-2px);box-shadow:0 22px 36px -14px rgba(0,0,0,.45)}
+  .btn.ghost{border:1px solid var(--line);background:rgba(255,255,255,.5)}
+  .btn.ghost:hover{background:rgba(255,255,255,.85);transform:translateY(-2px)}
+
+  @keyframes soft-rise{from{opacity:0;transform:translateY(22px)}to{opacity:1;transform:translateY(0)}}
+
+  /* Floating desk shapes */
+  .desk{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+  .shape{position:absolute;border-radius:24px;opacity:.55;filter:blur(.3px);will-change:transform}
+  .shape.s1{width:120px;height:160px;left:8%;top:18%;background:linear-gradient(135deg,var(--terracotta-soft),var(--terracotta));transform:rotate(-10deg);animation:float1 14s ease-in-out infinite}
+  .shape.s2{width:90px;height:90px;right:10%;top:22%;border-radius:50%;background:linear-gradient(135deg,var(--butter-soft),var(--butter));animation:float2 18s ease-in-out infinite}
+  .shape.s3{width:80px;height:130px;left:14%;bottom:14%;background:linear-gradient(135deg,var(--sage-soft),var(--sage));transform:rotate(8deg);animation:float3 16s ease-in-out infinite}
+  .shape.s4{width:140px;height:60px;right:14%;bottom:18%;border-radius:36px;background:linear-gradient(135deg,var(--sky-soft),var(--sky));animation:float1 20s ease-in-out infinite reverse}
+  .shape.s5{width:24px;height:24px;left:46%;top:12%;border-radius:50%;background:var(--plum);animation:float2 12s ease-in-out infinite}
+  .shape.s6{width:36px;height:36px;right:32%;bottom:8%;border-radius:50%;background:var(--terracotta);animation:float3 10s ease-in-out infinite reverse}
+  @keyframes float1{0%,100%{transform:translate(0,0) rotate(-10deg)}50%{transform:translate(20px,-30px) rotate(-4deg)}}
+  @keyframes float2{0%,100%{transform:translate(0,0)}50%{transform:translate(-22px,24px)}}
+  @keyframes float3{0%,100%{transform:translate(0,0) rotate(8deg)}50%{transform:translate(14px,-22px) rotate(2deg)}}
+
+  /* ───────────────────────────────────────── Marquee strip ── */
+  .strip{
+    border-top:1px solid var(--line-soft);border-bottom:1px solid var(--line-soft);
+    background:rgba(255,255,255,.35);overflow:hidden;padding:18px 0;
+  }
+  .marquee{display:flex;gap:60px;animation:scroll 38s linear infinite;white-space:nowrap;width:max-content}
+  .marquee span{font-family:var(--font-mono);font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-soft);display:inline-flex;align-items:center;gap:14px}
+  .marquee span::after{content:'';width:6px;height:6px;border-radius:50%;background:var(--terracotta);margin-left:60px}
+  @keyframes scroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+
+  /* ───────────────────────────────────────── Features grid ── */
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:50px}
+  @media(max-width:960px){.grid{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:640px){.grid{grid-template-columns:1fr}}
+
+  .card{
+    position:relative;padding:28px;border-radius:18px;background:rgba(255,255,255,.55);
+    border:1px solid var(--line-soft);
+    transition:transform .35s cubic-bezier(.2,.7,.2,1), box-shadow .35s, background .35s;
+    overflow:hidden;
+    opacity:0;transform:translateY(20px);
+  }
+  .card.in{opacity:1;transform:translateY(0);transition:opacity .8s ease, transform .8s cubic-bezier(.2,.7,.2,1)}
+  .card:hover{transform:translateY(-6px);box-shadow:0 30px 60px -30px rgba(0,0,0,.18);background:rgba(255,255,255,.85)}
+  .card .icn{
+    width:46px;height:46px;border-radius:12px;display:grid;place-items:center;margin-bottom:18px;
+    font-size:22px;background:var(--bg-sunk);
+    transition:transform .35s;
+  }
+  .card:hover .icn{transform:rotate(-8deg) scale(1.08)}
+  .card h3{font-family:var(--font-display);font-size:22px}
+  .card p{font-size:14.5px;color:var(--ink-soft);margin-top:6px}
+  .card .tag{position:absolute;top:18px;right:18px;font-family:var(--font-mono);font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-faint)}
+
+  /* tone-tinted cards */
+  .card.t-terra .icn{background:var(--terracotta-soft);color:var(--terracotta)}
+  .card.t-sage  .icn{background:var(--sage-soft);color:var(--sage)}
+  .card.t-plum  .icn{background:var(--plum-soft);color:var(--plum)}
+  .card.t-butter .icn{background:var(--butter-soft);color:#8a6d12}
+  .card.t-sky   .icn{background:var(--sky-soft);color:var(--sky)}
+  .card.t-ink   .icn{background:#dbd2c0;color:var(--ink)}
+
+  /* ───────────────────────────────────────── Voice agent section ── */
+  .voice-wrap{display:grid;grid-template-columns:1.1fr .9fr;gap:60px;align-items:center;margin-top:50px}
+  @media(max-width:900px){.voice-wrap{grid-template-columns:1fr}}
+  .phone{
+    position:relative;width:300px;height:600px;border-radius:46px;background:linear-gradient(160deg,#2a2521,#171411);
+    margin:0 auto;padding:14px;box-shadow:0 40px 80px -30px rgba(0,0,0,.5), inset 0 0 0 2px #3a322b;
+  }
+  .phone .screen{
+    width:100%;height:100%;border-radius:34px;background:linear-gradient(180deg,#f6f1e8 0%, #ece1cb 100%);
+    position:relative;overflow:hidden;display:flex;flex-direction:column;padding:30px 22px;gap:14px;
+  }
+  .phone .notch{position:absolute;top:14px;left:50%;transform:translateX(-50%);width:90px;height:20px;background:#171411;border-radius:12px}
+  .phone .time{font-family:var(--font-mono);font-size:11px;color:var(--ink-soft);margin-top:18px;text-align:center}
+  .bubble{padding:12px 14px;border-radius:18px;font-size:13px;line-height:1.45;max-width:80%;animation:pop .6s cubic-bezier(.2,.7,.2,1) both}
+  .bubble.agent{background:var(--ink);color:var(--bg);align-self:flex-start;border-bottom-left-radius:6px}
+  .bubble.user{background:var(--terracotta-soft);color:var(--ink);align-self:flex-end;border-bottom-right-radius:6px}
+  .bubble.b1{animation-delay:.4s} .bubble.b2{animation-delay:1.4s} .bubble.b3{animation-delay:2.4s} .bubble.b4{animation-delay:3.4s} .bubble.b5{animation-delay:4.4s}
+  @keyframes pop{from{opacity:0;transform:translateY(8px) scale(.95)}to{opacity:1;transform:translateY(0) scale(1)}}
+
+  .pulse{
+    position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+    width:90px;height:90px;border-radius:50%;background:var(--terracotta);
+    display:grid;place-items:center;color:#fff;font-size:34px;
+    box-shadow:0 0 0 0 rgba(201,99,61,.6);animation:ring 2.2s ease-out infinite;z-index:1;opacity:0;animation-delay:0;
+  }
+  @keyframes ring{
+    0%{box-shadow:0 0 0 0 rgba(201,99,61,.55), 0 0 0 0 rgba(201,99,61,.35)}
+    80%{box-shadow:0 0 0 28px rgba(201,99,61,0), 0 0 0 56px rgba(201,99,61,0)}
+    100%{box-shadow:0 0 0 0 rgba(201,99,61,0)}
+  }
+
+  .tool-list{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+  .tool-list .pill{
+    font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;text-transform:lowercase;
+    padding:6px 12px;border-radius:999px;background:rgba(255,255,255,.7);border:1px solid var(--line);
+    color:var(--ink-soft);
+  }
+
+  /* ───────────────────────────────────────── Tech stack constellation ── */
+  .stack{margin-top:60px;display:grid;grid-template-columns:repeat(6,1fr);gap:16px}
+  @media(max-width:900px){.stack{grid-template-columns:repeat(3,1fr)}}
+  @media(max-width:500px){.stack{grid-template-columns:repeat(2,1fr)}}
+  .chip{
+    aspect-ratio:1;border-radius:18px;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;padding:14px;gap:8px;
+    background:rgba(255,255,255,.55);border:1px solid var(--line-soft);
+    transition:transform .4s cubic-bezier(.2,.7,.2,1), box-shadow .4s, background .4s;
+    opacity:0;transform:translateY(16px);
+  }
+  .chip.in{opacity:1;transform:translateY(0);transition:opacity .8s ease, transform .8s cubic-bezier(.2,.7,.2,1)}
+  .chip:hover{transform:translateY(-4px) rotate(-1.5deg);box-shadow:0 24px 50px -28px rgba(0,0,0,.2);background:rgba(255,255,255,.92)}
+  .chip .logo{width:40px;height:40px;border-radius:10px;display:grid;place-items:center;font-size:18px;color:#fff;font-weight:700;font-family:var(--font-mono)}
+  .chip .name{font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink)}
+  .chip .role{font-size:10.5px;color:var(--ink-faint);font-family:var(--font-mono);letter-spacing:.06em}
+
+  /* ───────────────────────────────────────── Architecture diagram ── */
+  .arch{
+    margin-top:60px;position:relative;
+    background:linear-gradient(180deg, rgba(255,255,255,.6), rgba(255,255,255,.3));
+    border:1px solid var(--line-soft);border-radius:24px;padding:40px;overflow:hidden;
+  }
+  .arch svg{display:block;width:100%;height:auto}
+  .arch .legend{display:flex;flex-wrap:wrap;gap:20px;margin-top:24px;font-family:var(--font-mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft)}
+  .arch .legend span{display:inline-flex;align-items:center;gap:8px}
+  .arch .legend i{width:14px;height:3px;border-radius:2px;display:inline-block}
+
+  /* dotted flow lines pulse */
+  .flow-line{stroke-dasharray:6 8;animation:dash 1.6s linear infinite}
+  @keyframes dash{to{stroke-dashoffset:-28}}
+
+  /* ───────────────────────────────────────── Cron timeline ── */
+  .timeline{position:relative;margin-top:60px;padding-left:28px;border-left:2px dashed var(--line)}
+  .tl-item{position:relative;padding:14px 0 30px 24px}
+  .tl-item::before{
+    content:'';position:absolute;left:-35px;top:18px;width:16px;height:16px;border-radius:50%;
+    background:var(--bg);border:3px solid var(--terracotta);
+    box-shadow:0 0 0 0 rgba(201,99,61,.4);animation:ringSmall 2.4s ease-out infinite;
+  }
+  .tl-item:nth-child(2)::before{border-color:var(--sage);animation-delay:.4s;box-shadow:0 0 0 0 rgba(122,148,114,.4)}
+  .tl-item:nth-child(3)::before{border-color:var(--plum);animation-delay:.8s;box-shadow:0 0 0 0 rgba(138,90,120,.4)}
+  .tl-item:nth-child(4)::before{border-color:var(--sky);animation-delay:1.2s;box-shadow:0 0 0 0 rgba(91,143,191,.4)}
+  @keyframes ringSmall{
+    0%{box-shadow:0 0 0 0 rgba(201,99,61,.5)}
+    80%{box-shadow:0 0 0 12px rgba(201,99,61,0)}
+    100%{box-shadow:0 0 0 0 rgba(201,99,61,0)}
+  }
+  .tl-item .meta{font-family:var(--font-mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:6px}
+  .tl-item h3{font-family:var(--font-display);font-size:22px;margin-bottom:6px}
+  .tl-item code{font-family:var(--font-mono);font-size:12px;background:var(--bg-sunk);padding:2px 8px;border-radius:6px;color:var(--ink)}
+
+  /* ───────────────────────────────────────── Footer ── */
+  footer{padding:60px 0 80px;border-top:1px solid var(--line-soft);text-align:center}
+  footer p{margin:0 auto;font-family:var(--font-mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-faint)}
+  footer .heart{color:var(--terracotta)}
+
+  /* reveal animation classes (added by JS) */
+  .reveal{opacity:0;transform:translateY(28px);transition:opacity .9s ease, transform .9s cubic-bezier(.2,.7,.2,1)}
+  .reveal.in{opacity:1;transform:translateY(0)}
+
+  /* selection */
+  ::selection{background:var(--terracotta);color:#fff}
+
+  /* tiny rotating sun in section headers */
+  .sun{display:inline-block;width:18px;height:18px;border-radius:50%;background:radial-gradient(circle at 30% 30%,#ffe69b,#e3b94e);box-shadow:0 0 24px rgba(227,185,78,.7);animation:spin 10s linear infinite;vertical-align:middle;margin-right:10px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav class="top">
+  <div class="container inner">
+    <div class="brand"><span class="dot"></span><span>Slowdesk</span></div>
+    <ul>
+      <li><a href="#features">Features</a></li>
+      <li><a href="#voice">Voice Agent</a></li>
+      <li><a href="#stack">Tech</a></li>
+      <li><a href="#architecture">Architecture</a></li>
+      <li><a href="#cron">Crons</a></li>
+    </ul>
+  </div>
+</nav>
+
+<!-- HERO -->
+<header class="hero">
+  <div class="desk" aria-hidden="true">
+    <div class="shape s1"></div>
+    <div class="shape s2"></div>
+    <div class="shape s3"></div>
+    <div class="shape s4"></div>
+    <div class="shape s5"></div>
+    <div class="shape s6"></div>
+  </div>
+  <div class="container">
+    <div class="eyebrow">A calm workspace · personal productivity</div>
+    <h1>
+      <span class="word w1">Work</span>
+      <span class="word w2">at a</span><br/>
+      <span class="ital">human</span> <span class="word w3">pace.</span>
+    </h1>
+    <p class="sub">Tasks, projects, habits, notes, calendar — and an AI voice agent that calls you twice a day to plan and reflect. All in one warm, intentional workspace.</p>
+    <div class="cta">
+      <a class="btn primary" href="#features">Explore features →</a>
+      <a class="btn ghost" href="#architecture">See architecture</a>
+    </div>
+  </div>
+</header>
+
+<!-- MARQUEE -->
+<div class="strip" aria-hidden="true">
+  <div class="marquee">
+    <span>Next.js 16</span><span>Supabase</span><span>Groq Llama 3.3</span><span>Twilio Voice</span><span>Tailwind v4</span><span>GSAP</span><span>Resend</span><span>Gemini 2.5</span><span>Google Calendar</span><span>Tesseract.js</span>
+    <span>Next.js 16</span><span>Supabase</span><span>Groq Llama 3.3</span><span>Twilio Voice</span><span>Tailwind v4</span><span>GSAP</span><span>Resend</span><span>Gemini 2.5</span><span>Google Calendar</span><span>Tesseract.js</span>
+  </div>
+</div>
+
+<!-- FEATURES -->
+<section id="features">
+  <div class="container">
+    <div class="eyebrow"><span class="sun"></span>01 · Features</div>
+    <h2 class="reveal">Eight modules,<br/>one calm interface.</h2>
+    <p class="lead reveal">Every surface in Slowdesk is shaped around intention. Drag instead of click, breathe instead of buzz, and let the small rituals carry you through the day.</p>
+
+    <div class="grid">
+      <div class="card t-terra"><span class="tag">01</span><div class="icn">◐</div><h3>Dashboard</h3><p>Greeting card, drag-to-reorder daily queue, week timeline, donut chart, habit heatmap, and active project cards in one warm canvas.</p></div>
+      <div class="card t-sage"><span class="tag">02</span><div class="icn">✓</div><h3>Tasks</h3><p>All / Today / Upcoming / Completed tabs · subtasks · descriptions · due dates · recurring rules · photo-to-task OCR · voice input · AI breakdown.</p></div>
+      <div class="card t-plum"><span class="tag">03</span><div class="icn">◊</div><h3>Projects</h3><p>Tone-coloured project cards with progress, due dates, and uploaded project documents stored in Supabase Storage.</p></div>
+      <div class="card t-sky"><span class="tag">04</span><div class="icn">▦</div><h3>Calendar</h3><p>Month view with two-way Google Calendar sync. Synced events wear a small <code>G</code> badge.</p></div>
+      <div class="card t-butter"><span class="tag">05</span><div class="icn">∿</div><h3>Habits</h3><p>Daily check-ins, subhabits, streak counters, 30-day heatmaps, and AI-powered insights on streak risk and co-occurrence.</p></div>
+      <div class="card t-ink"><span class="tag">06</span><div class="icn">✎</div><h3>Notes</h3><p>Freeform notes with tone colours and a daily gratitude journal. Optional AI rewrite to polish the rough first draft.</p></div>
+      <div class="card t-terra"><span class="tag">07</span><div class="icn">◷</div><h3>Pomodoro</h3><p>25 · 5 · 15 cycle with animated SVG ring, phase-specific colours, and per-task session counts persisted forever.</p></div>
+      <div class="card t-sage"><span class="tag">08</span><div class="icn">☉</div><h3>Profile &amp; Tweaks</h3><p>Light / dark · six accents · sidebar mode · density · dashboard layouts · avatar upload · per-user timezone scheduling.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- VOICE AGENT -->
+<section id="voice" style="background:linear-gradient(180deg, transparent, rgba(255,255,255,.35), transparent)">
+  <div class="container">
+    <div class="eyebrow"><span class="sun"></span>02 · Voice agent</div>
+    <h2 class="reveal">It calls you. <em style="font-style:italic;color:var(--terracotta)">Twice a day.</em></h2>
+    <p class="lead reveal">A real phone call — your calendar, your tasks, your habits, your projects. The agent talks, you talk back, things actually change in your workspace.</p>
+
+    <div class="voice-wrap">
+      <!-- Phone mockup -->
+      <div class="phone reveal">
+        <div class="notch"></div>
+        <div class="screen">
+          <div class="time">7:30 AM · Wednesday</div>
+          <div class="bubble agent b1">Good morning, Saumya. You have a 2 pm call with Maya — want me to move gym to 4?</div>
+          <div class="bubble user b2">Yes, move it to 4.</div>
+          <div class="bubble agent b3">Done. Three high-priority tasks today: ship voice agent v2, review Aurora docs, and book flights.</div>
+          <div class="bubble user b4">Mark "book flights" as done.</div>
+          <div class="bubble agent b5">Marked. Have a calm one.</div>
+        </div>
+      </div>
+
+      <!-- Capability list -->
+      <div class="reveal">
+        <h3 style="font-size:30px;line-height:1.15;margin-bottom:14px">Powered by Groq <em style="color:var(--terracotta)">llama-3.3-70b</em> with tool calling.</h3>
+        <p style="font-size:15.5px;color:var(--ink-soft)">During a call the agent has direct, authenticated access to your data — and the tools to actually change things, not just talk about them.</p>
+        <div class="tool-list">
+          <span class="pill">complete_task</span>
+          <span class="pill">reschedule_task</span>
+          <span class="pill">delete_task</span>
+          <span class="pill">create_task</span>
+          <span class="pill">set_task_time</span>
+          <span class="pill">change_priority</span>
+          <span class="pill">complete_habit</span>
+          <span class="pill">skip_habit</span>
+          <span class="pill">end_conversation</span>
+        </div>
+        <ul style="margin-top:26px;padding:0;list-style:none;display:grid;gap:10px;font-size:14.5px;color:var(--ink-soft)">
+          <li>📅 Pulls today's <strong style="color:var(--ink)">calendar events</strong> — including Google-synced ones — to suggest free slots.</li>
+          <li>📊 Evening calls weave in a short <strong style="color:var(--ink)">project-progress recap</strong>: <em>"Aurora is 70% done, 2 tasks left this week."</em></li>
+          <li>🧠 Persistent <strong style="color:var(--ink)">long-term memory</strong> across sessions — the agent remembers what you told it yesterday.</li>
+          <li>🌍 Runs at <strong style="color:var(--ink)">your local time</strong>, in <strong style="color:var(--ink)">your timezone</strong> — not some UTC default.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- TECH STACK -->
+<section id="stack">
+  <div class="container">
+    <div class="eyebrow"><span class="sun"></span>03 · Tech stack</div>
+    <h2 class="reveal">Boring tech, chosen on purpose.</h2>
+    <p class="lead reveal">Every layer is something you can hire for, debug at 2 am, and host without a sales call. No bespoke infra, no proprietary lock-in.</p>
+
+    <div class="stack">
+      <div class="chip"><div class="logo" style="background:#000">N</div><div class="name">Next.js 16</div><div class="role">framework</div></div>
+      <div class="chip"><div class="logo" style="background:#3178c6">TS</div><div class="name">TypeScript 5</div><div class="role">language</div></div>
+      <div class="chip"><div class="logo" style="background:#61dafb;color:#000">⚛</div><div class="name">React 19</div><div class="role">ui</div></div>
+      <div class="chip"><div class="logo" style="background:#38bdf8">⌬</div><div class="name">Tailwind v4</div><div class="role">styling</div></div>
+      <div class="chip"><div class="logo" style="background:#88ce02;color:#000">G</div><div class="name">GSAP 3</div><div class="role">motion</div></div>
+      <div class="chip"><div class="logo" style="background:#3ecf8e">S</div><div class="name">Supabase</div><div class="role">db + auth</div></div>
+
+      <div class="chip"><div class="logo" style="background:#ff6b35">G</div><div class="name">Groq</div><div class="role">voice llm</div></div>
+      <div class="chip"><div class="logo" style="background:#4285f4">G</div><div class="name">Gemini 2.5</div><div class="role">task ai</div></div>
+      <div class="chip"><div class="logo" style="background:#f22f46">T</div><div class="name">Twilio</div><div class="role">voice + wa</div></div>
+      <div class="chip"><div class="logo" style="background:#000">R</div><div class="name">Resend</div><div class="role">email</div></div>
+      <div class="chip"><div class="logo" style="background:#4285f4">C</div><div class="name">Google Cal</div><div class="role">sync</div></div>
+      <div class="chip"><div class="logo" style="background:#7b3fe4">T</div><div class="name">Tesseract.js</div><div class="role">ocr</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ARCHITECTURE -->
+<section id="architecture" style="background:linear-gradient(180deg, transparent, rgba(255,255,255,.4), transparent)">
+  <div class="container">
+    <div class="eyebrow"><span class="sun"></span>04 · Architecture</div>
+    <h2 class="reveal">How the pieces talk.</h2>
+    <p class="lead reveal">A single Next.js app handles every surface — web, API routes, and Twilio webhooks. Supabase holds state; Groq, Gemini, Twilio, and Resend are leaf services. Background work fans out from Supabase <code>pg_cron</code>, not Vercel.</p>
+
+    <div class="arch reveal">
+      <svg viewBox="0 0 1100 540" preserveAspectRatio="xMidYMid meet">
+        <defs>
+          <linearGradient id="g-app" x1="0" x2="1"><stop offset="0" stop-color="#c9633d"/><stop offset="1" stop-color="#8a5a78"/></linearGradient>
+          <linearGradient id="g-db"  x1="0" x2="1"><stop offset="0" stop-color="#7a9472"/><stop offset="1" stop-color="#5b8fbf"/></linearGradient>
+          <linearGradient id="g-ai"  x1="0" x2="1"><stop offset="0" stop-color="#e3b94e"/><stop offset="1" stop-color="#c9633d"/></linearGradient>
+          <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="6" result="b"/>
+            <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
+
+        <!-- USER -->
+        <g>
+          <rect x="40" y="40" width="170" height="84" rx="16" fill="#ffffffcc" stroke="#e3d9c4"/>
+          <text x="125" y="72" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" fill="#5a554d" letter-spacing="2">USER</text>
+          <text x="125" y="98" text-anchor="middle" font-family="Instrument Serif, serif" font-size="22" fill="#1a1814">browser · phone</text>
+        </g>
+
+        <!-- NEXT APP -->
+        <g filter="url(#soft)">
+          <rect x="280" y="20" width="540" height="220" rx="22" fill="url(#g-app)" opacity=".95"/>
+        </g>
+        <text x="550" y="56" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" fill="#ffffffcc" letter-spacing="3">NEXT.JS 16 · APP ROUTER</text>
+        <g font-family="Geist, sans-serif" font-size="13" fill="#fff">
+          <rect x="310" y="76"  width="220" height="46" rx="10" fill="#ffffff22"/>
+          <text x="420" y="105" text-anchor="middle">Pages · Dashboard · Tasks · etc</text>
+          <rect x="570" y="76"  width="220" height="46" rx="10" fill="#ffffff22"/>
+          <text x="680" y="105" text-anchor="middle">API routes</text>
+          <rect x="310" y="138" width="220" height="46" rx="10" fill="#ffffff22"/>
+          <text x="420" y="167" text-anchor="middle">Twilio TwiML webhooks</text>
+          <rect x="570" y="138" width="220" height="46" rx="10" fill="#ffffff22"/>
+          <text x="680" y="167" text-anchor="middle">Voice agent loop</text>
+        </g>
+        <text x="550" y="220" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="#ffffff99" letter-spacing="2">RUNTIME · NODEJS</text>
+
+        <!-- SUPABASE -->
+        <g filter="url(#soft)">
+          <rect x="280" y="320" width="540" height="180" rx="22" fill="url(#g-db)" opacity=".95"/>
+        </g>
+        <text x="550" y="356" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" fill="#ffffffcc" letter-spacing="3">SUPABASE</text>
+        <g font-family="Geist, sans-serif" font-size="12.5" fill="#fff">
+          <rect x="310" y="376" width="150" height="40" rx="10" fill="#ffffff22"/>
+          <text x="385" y="401" text-anchor="middle">Postgres + RLS</text>
+          <rect x="470" y="376" width="150" height="40" rx="10" fill="#ffffff22"/>
+          <text x="545" y="401" text-anchor="middle">Auth (OAuth)</text>
+          <rect x="630" y="376" width="160" height="40" rx="10" fill="#ffffff22"/>
+          <text x="710" y="401" text-anchor="middle">Storage (S3-compat)</text>
+          <rect x="310" y="430" width="480" height="48" rx="10" fill="#ffffff22"/>
+          <text x="550" y="461" text-anchor="middle">pg_cron + pg_net  ·  hourly fan-out to /api/* with CRON_SECRET</text>
+        </g>
+
+        <!-- AI / external -->
+        <g filter="url(#soft)">
+          <rect x="880" y="40" width="190" height="200" rx="22" fill="url(#g-ai)" opacity=".95"/>
+        </g>
+        <text x="975" y="76" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" fill="#ffffffcc" letter-spacing="3">AI · COMMS</text>
+        <g font-family="Geist, sans-serif" font-size="12.5" fill="#fff">
+          <rect x="900" y="96"  width="150" height="32" rx="8" fill="#ffffff22"/><text x="975" y="117" text-anchor="middle">Groq · Llama 3.3</text>
+          <rect x="900" y="134" width="150" height="32" rx="8" fill="#ffffff22"/><text x="975" y="155" text-anchor="middle">Gemini 2.5 Flash</text>
+          <rect x="900" y="172" width="150" height="32" rx="8" fill="#ffffff22"/><text x="975" y="193" text-anchor="middle">Twilio Voice + WA</text>
+          <rect x="900" y="210" width="150" height="32" rx="8" fill="#ffffff22"/><text x="975" y="231" text-anchor="middle">Resend · Google Cal</text>
+        </g>
+
+        <!-- arrows -->
+        <g fill="none" stroke-width="2.4" stroke-linecap="round">
+          <!-- user ↔ app -->
+          <path class="flow-line" d="M210 82 L280 90" stroke="#c9633d"/>
+          <path class="flow-line" d="M280 110 L210 102" stroke="#c9633d"/>
+          <!-- app ↔ supabase -->
+          <path class="flow-line" d="M550 240 L550 320" stroke="#7a9472"/>
+          <!-- pg_cron ↔ app api -->
+          <path class="flow-line" d="M550 430 C 200 430, 200 130, 295 130" stroke="#5b8fbf"/>
+          <!-- app → ai -->
+          <path class="flow-line" d="M820 140 L880 140" stroke="#e3b94e"/>
+          <path class="flow-line" d="M880 170 L820 170" stroke="#e3b94e"/>
+          <!-- user → twilio (phone) -->
+          <path class="flow-line" d="M125 124 C 125 280, 880 280, 975 244" stroke="#8a5a78"/>
+        </g>
+      </svg>
+
+      <div class="legend">
+        <span><i style="background:#c9633d"></i>User ⇄ App</span>
+        <span><i style="background:#7a9472"></i>App ⇄ Database</span>
+        <span><i style="background:#5b8fbf"></i>pg_cron hourly fan-out</span>
+        <span><i style="background:#e3b94e"></i>App ⇄ AI / Comms</span>
+        <span><i style="background:#8a5a78"></i>Phone ⇄ Twilio voice loop</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CRON / RITUALS -->
+<section id="cron">
+  <div class="container">
+    <div class="eyebrow"><span class="sun"></span>05 · Daily rituals</div>
+    <h2 class="reveal">A day, choreographed.</h2>
+    <p class="lead reveal">Every hour, Supabase <code>pg_cron</code> pings the app. The app checks each user's local time and fans out exactly the rituals that match. No Vercel Pro plan required.</p>
+
+    <div class="timeline reveal">
+      <div class="tl-item">
+        <div class="meta">07:30 local · morning</div>
+        <h3>Voice call · plan the day</h3>
+        <p>Twilio dials you. The agent reads today's calendar, walks through your task list, and reschedules whatever doesn't fit. <code>POST /api/voice/outbound</code></p>
+      </div>
+      <div class="tl-item">
+        <div class="meta">08:00 local · morning</div>
+        <h3>Digest · email + WhatsApp</h3>
+        <p>Resend sends your morning summary; Twilio mirrors it to WhatsApp if enabled. <code>POST /api/notifications/morning-digest</code></p>
+      </div>
+      <div class="tl-item">
+        <div class="meta">19:00 local · evening</div>
+        <h3>Reflective call · close the day</h3>
+        <p>What you finished. What's left. A short project-progress recap. The agent listens, then logs everything to <code>voice_sessions</code>.</p>
+      </div>
+      <div class="tl-item">
+        <div class="meta">Sunday 04:00 UTC</div>
+        <h3>Weekly retrospective</h3>
+        <p>An auto-generated weekly summary email — completion rate, habit streaks, and a Gemini-written insight paragraph. <code>POST /api/retrospective</code></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="container">
+    <p>Built with <span class="heart">♥</span> · Slowdesk · A calmer way to work</p>
+  </div>
+</footer>
+
+<script>
+  // Reveal on scroll
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });
+  }, { threshold: 0.12 });
+
+  document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+
+  // Stagger reveal for grids
+  const stagger = (selector, baseDelay = 80) => {
+    document.querySelectorAll(selector).forEach((el, i) => {
+      el.style.transitionDelay = (i * baseDelay) + 'ms';
+      io.observe(el);
+    });
+  };
+  stagger('.grid .card', 70);
+  stagger('.stack .chip', 50);
+
+  // gentle parallax on hero shapes
+  const shapes = document.querySelectorAll('.shape');
+  window.addEventListener('mousemove', (e) => {
+    const x = (e.clientX / window.innerWidth) - 0.5;
+    const y = (e.clientY / window.innerHeight) - 0.5;
+    shapes.forEach((s, i) => {
+      const depth = (i + 1) * 6;
+      s.style.translate = `${x * depth}px ${y * depth}px`;
+    });
+  }, { passive: true });
+</script>
+
+</body>
+</html>
