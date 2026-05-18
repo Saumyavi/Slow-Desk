@@ -34,6 +34,23 @@ export interface VoiceHabit {
   completedToday: boolean;
 }
 
+export interface VoiceCalendarEvent {
+  /** 12-hour or 24-hour formatted time, as stored on the event ("2:00 PM" / "14:00"). */
+  time: string;
+  /** Optional end time in same format. */
+  endTime?: string;
+  title: string;
+  /** 'local' | 'google' — surfaces the badge on the UI. */
+  source: 'local' | 'google';
+}
+
+export interface VoiceProjectProgress {
+  name: string;
+  percent: number;       // 0..100
+  remaining: number;     // open tasks total
+  remainingThisWeek: number;
+}
+
 export interface CallMemoryEntry {
   date: string;
   type: 'morning' | 'evening';
@@ -54,6 +71,8 @@ export interface AgentSession {
   tasks: VoiceTask[];
   habits: VoiceHabit[];
   memory: CallMemoryEntry[];
+  calendarEvents?: VoiceCalendarEvent[];
+  projectProgress?: VoiceProjectProgress[];
 }
 
 export interface AgentTurnResult {
@@ -291,6 +310,18 @@ export async function runAgentTurn(
     ? session.habits.map((h, i) => `${i + 1}. [ID:${h.id}] ${h.emoji} ${h.name}${h.completedToday ? ' (already done today)' : ''}`).join('\n')
     : 'No habits set up.';
 
+  const calendarList = (session.calendarEvents ?? []).length
+    ? (session.calendarEvents ?? [])
+        .map(e => `- ${e.time}${e.endTime ? `–${e.endTime}` : ''} "${e.title}"${e.source === 'google' ? ' (Google Cal)' : ''}`)
+        .join('\n')
+    : 'No calendar events today.';
+
+  const projectList = (session.projectProgress ?? []).length
+    ? (session.projectProgress ?? [])
+        .map(p => `- ${p.name}: ${p.percent}% done, ${p.remaining} task${p.remaining === 1 ? '' : 's'} left${p.remainingThisWeek > 0 ? ` (${p.remainingThisWeek} this week)` : ''}`)
+        .join('\n')
+    : 'No active projects.';
+
   const memoryContext = session.memory.length
     ? `\nPast call patterns (use to personalise responses):\n${session.memory.slice(0, 5).map(m => `- ${m.date} ${m.type}: ${m.summary}`).join('\n')}`
     : '';
@@ -304,12 +335,20 @@ ${taskList}
 
 Today's habits:
 ${habitList}
+
+Today's calendar:
+${calendarList}
+
+Project progress:
+${projectList}
 ${memoryContext}
 
 Rules:
 - Use function calls immediately when the user requests changes.
 - After an action, briefly confirm and ask if there is anything else.
 - For habits: ask if they completed yesterday's habits during morning calls if not already done.
+- Use the calendar to spot conflicts. If a task has no time but the day has events, suggest a free slot, e.g. "you have a 2 pm call — want to move gym to 4?"
+- On evening calls, weave a short project-progress recap into the conversation when relevant.
 - Call end_conversation when the user says they are done, goodbye, or similar.
 - If you notice a pattern from memory (e.g. user keeps rescheduling the same task), gently mention it.`;
 
@@ -435,12 +474,21 @@ export async function generateEveningSummary(
   completedTasks: VoiceTask[],
   pendingTasks: VoiceTask[],
   memory: CallMemoryEntry[],
+  projectProgress: VoiceProjectProgress[] = [],
 ): Promise<string> {
+  const projectLine = projectProgress.length
+    ? projectProgress
+        .slice(0, 3)
+        .map(p => `${p.name} is ${p.percent}% done${p.remainingThisWeek > 0 ? ` with ${p.remainingThisWeek} task${p.remainingThisWeek === 1 ? '' : 's'} left this week` : ''}`)
+        .join('; ')
+    : '';
+
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) {
     const c = completedTasks.length;
     const p = pendingTasks.length;
-    return `Good evening ${userName}! You completed ${c} task${c !== 1 ? 's' : ''} today. ${p > 0 ? `${p} still pending.` : 'Great work!'}`;
+    const proj = projectLine ? ` ${projectLine}.` : '';
+    return `Good evening ${userName}! You completed ${c} task${c !== 1 ? 's' : ''} today. ${p > 0 ? `${p} still pending.` : 'Great work!'}${proj}`;
   }
 
   const client = new Groq({ apiKey });
@@ -449,6 +497,7 @@ export async function generateEveningSummary(
   const memCtx    = memory.length
     ? `Recent patterns: ${memory.slice(0, 3).map(m => m.summary).join('; ')}.`
     : '';
+  const projCtx   = projectLine ? `Project progress: ${projectLine}.` : '';
 
   const res = await client.chat.completions.create({
     model: MODEL,
@@ -457,8 +506,9 @@ export async function generateEveningSummary(
       content: `Write a warm, encouraging evening summary for ${userName}.
 Completed today: ${completed}.
 Still pending: ${pending}.
+${projCtx}
 ${memCtx}
-Keep it to 3-4 sentences, voice-friendly (no lists, no markdown). Include one personalised improvement tip based on their patterns if available, otherwise a general tip.`,
+Keep it to 3-4 sentences, voice-friendly (no lists, no markdown). Weave the project progress in naturally if present. Include one personalised improvement tip based on their patterns if available, otherwise a general tip.`,
     }],
     temperature: 0.6,
   });

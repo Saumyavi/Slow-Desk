@@ -7,6 +7,33 @@ import { getMorningDigestEmail, getMorningDigestWhatsApp, getMorningDigestTempla
 
 export const runtime = 'nodejs';
 
+/**
+ * Returns the user's local hour (0-23) right now in the given IANA timezone.
+ * Falls back to UTC if the timezone string is invalid.
+ */
+function hourInTimezone(now: Date, tz: string): number {
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz || 'UTC',
+      hour: '2-digit',
+      hour12: false,
+    }).formatToParts(now);
+    const hh = parts.find(p => p.type === 'hour')?.value ?? '0';
+    const n = parseInt(hh, 10);
+    return Number.isFinite(n) ? n % 24 : now.getUTCHours();
+  } catch {
+    return now.getUTCHours();
+  }
+}
+
+/** Match "HH" or "HH:MM" against the current hour in the user's timezone. */
+function matchesScheduledHour(scheduled: string | null | undefined, tz: string | null | undefined, now: Date): boolean {
+  if (!scheduled) return false;
+  const targetHour = parseInt(scheduled.split(':')[0] ?? '', 10);
+  if (!Number.isFinite(targetHour)) return false;
+  return hourInTimezone(now, tz || 'UTC') === targetHour;
+}
+
 export async function GET(request: Request) {
   const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -25,15 +52,21 @@ export async function GET(request: Request) {
     // Fetch all users who have any notification enabled
     const { data: profiles, error: profilesError } = await supabaseAdmin
       .from('user_profiles')
-      .select('id, notification_email_enabled, notification_whatsapp_enabled, notification_call_enabled, notification_phone');
+      .select('id, notification_email_enabled, notification_whatsapp_enabled, notification_call_enabled, notification_phone, notification_time, notification_timezone');
 
     if (profilesError) {
       return NextResponse.json({ error: 'Failed to fetch profiles' }, { status: 500 });
     }
 
-    const targets = (profiles || []).filter(
-      (p: any) => p.notification_email_enabled || p.notification_whatsapp_enabled || p.notification_call_enabled,
-    );
+    const now = new Date();
+
+    // Only contact users whose local morning-time hour matches the current hour.
+    // The cron itself runs hourly so this acts as a per-user filter.
+    const targets = (profiles || []).filter((p: any) => {
+      const anyEnabled = p.notification_email_enabled || p.notification_whatsapp_enabled || p.notification_call_enabled;
+      if (!anyEnabled) return false;
+      return matchesScheduledHour(p.notification_time, p.notification_timezone, now);
+    });
 
     if (targets.length === 0) {
       return NextResponse.json({ success: true, sent: 0, message: 'No users opted in' });
@@ -93,7 +126,7 @@ export async function GET(request: Request) {
     }
 
     // Also fire weekly retrospective on Sunday at 04:00 UTC (same daily run)
-    if (today.getUTCDay() === 0) {
+    if (now.getUTCDay() === 0 && now.getUTCHours() === 4) {
       const baseUrl = new URL(request.url).origin;
       await fetch(`${baseUrl}/api/retrospective`, {
         headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` },

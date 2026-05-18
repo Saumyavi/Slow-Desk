@@ -1,185 +1,128 @@
-# slowdesk
+# Slowdesk
 
-> A calmer way to work — tasks, habits, projects, notes, and deep focus, all in one warm workspace built for intentional people.
+A calm, personal productivity workspace — tasks, projects, habits, notes, calendar, and an AI **voice agent** that calls you twice a day to plan and reflect.
 
 **Live:** [slowdesk.app](https://slowdesk.app)
 
 ---
 
-## ✨ Features
+## Features
 
-### 🗂 Core Modules
+### Workspace
 
-| Module | What it does |
+| Module | Highlights |
 |---|---|
-| **Dashboard** | Greeting card with mood tracker, today's task queue (drag to reorder), week Gantt timeline, task donut chart, habit heatmap, active project cards |
-| **Tasks** | Full task list with All / Today / Upcoming / Completed tabs, priority & project filters, inline edit/delete, recurring tasks |
-| **Projects** | Tone-colored project cards with per-project task progress bars and due dates |
-| **Calendar** | Month view with color-coded events; **Google Calendar sync** — connect once, pull all events automatically with a `G` badge |
-| **Habits** | Daily habit tracking with per-habit streak counter, 30-day history heatmap, and AI-powered analytics |
-| **Notes** | Freeform notes with color tones and an integrated daily gratitude journal |
-| **Profile** | Editorial profile editor — name, role, bio, location, status emoji, avatar upload; appearance settings; dashboard layout picker |
+| **Dashboard** | Greeting card, drag-to-reorder daily queue, week timeline, task donut, habit heatmap, active project cards |
+| **Tasks** | All / Today / Upcoming / Completed tabs · priority + project filters · subtasks · descriptions · due dates · recurring tasks · photo-to-task OCR · voice input · AI task breakdown |
+| **Projects** | Tone-colored cards · per-project progress · due dates · document uploads (Supabase Storage) |
+| **Calendar** | Month view with two-way **Google Calendar** sync (events badged `G`) |
+| **Habits** | Daily check-ins · subhabits · streak counters · 30-day heatmaps · AI insights |
+| **Notes** | Freeform notes with tone colors · daily gratitude journal · optional AI enhancement |
+| **Pomodoro** | 25/5/15 cycle, animated SVG ring, sessions persisted per task |
+| **Profile & Tweaks** | Light/dark · 6 accents · sidebar mode · density · dashboard layout · avatar upload |
 
-### 🤖 AI-Powered Features
+### Notifications & rituals
 
-| Feature | How it works |
+| Channel | What it does |
 |---|---|
-| **Voice Task Capture** | Speak a task naturally — Web Speech API transcribes it, Gemini AI parses it into a structured task with title, priority, due date, and project |
-| **Photo-to-Task OCR** | Point your camera at a handwritten list — Tesseract.js extracts text, a custom NLP parser converts it to tasks you review before importing |
-| **AI Habit Analysis** | Statistical analysis of your habit history (streaks, day-of-week rates, Jaccard co-occurrence, 30/60-day trends) fed to Gemini for personalized insights |
-
-### 🍅 Pomodoro Timer
-
-- Full 25/5/15 Pomodoro cycle with phase automation
-- Animated SVG ring progress indicator with phase-specific colors
-- Cycle dots track progress through each round of 4
-- Per-task session count persisted to Supabase
-- GSAP-animated modal with smooth open/close transitions
-
-### 📱 Progressive Web App (PWA)
-
-- Installable on iOS, Android, and desktop via browser "Add to Home Screen"
-- Service worker with **stale-while-revalidate** strategy for pages
-- Cache-first for static assets
-- Offline fallback page when no connection
-- Proper `manifest.json` with icons, theme color, and `standalone` display mode
-
-### 📱 Mobile-Responsive
-
-- Full mobile layout: sidebar hidden, **bottom navigation bar** shown
-- Tablet layout: icon-only sidebar collapses to 64px
-- All pages reflow to single-column on small screens
-- Touch-friendly targets, safe-area-inset padding for notched phones
-
-### 🔔 Notifications & Communication
-
-| Feature | Tech |
-|---|---|
-| **In-app notifications** | Bell icon with unread badge, per-item dismiss, 40-item history |
-| **Morning digest email** | Daily 4am cron — sends task summary via Resend |
+| **Email digest** | Morning summary via **Resend** at your chosen local time |
+| **WhatsApp digest** | Same digest via **Twilio WhatsApp Business** |
+| **Morning voice call** | AI agent (Twilio Voice + Groq) walks you through today's tasks at your local time |
+| **Evening voice call** | Reflective wrap-up: completed work, what's left, project-progress recap |
 | **Weekly retrospective** | Auto-generated Sunday email summarizing the week |
-| **WhatsApp notifications** | Twilio Business API for WhatsApp message delivery |
 
-### 🎨 Design System
+### Voice agent
 
-- **6 accent colors** — Terracotta, Sage, Plum, Butter, Sky, Ink — all synced to Supabase
-- **Light/dark theme** with full token coverage
-- **3 density modes** — Compact / Cozy / Comfy
-- **Background patterns** — None / Dots / Grid
-- **3 dashboard layout variants** — Classic / Focus / Editorial
-- Instrument Serif + Geist + JetBrains Mono typography
-- GSAP animations throughout
+Powered by **Groq `llama-3.3-70b-versatile`** with function calling. Per call it can:
 
-### 🧭 UX Polish
+- Complete / reschedule / delete / create tasks, set time, change priority
+- Complete or skip habits
+- Pull **today's calendar events** (incl. Google-synced) into context — *"you have a 2 pm call, want to move gym to 4?"*
+- Recap **project progress** on evening calls — *"Aurora is 70% done, 2 tasks left this week"*
+- Persist long-term **call memory** across sessions
+- End the conversation cleanly
 
-- **⌘K spotlight search** across tasks, notes, projects, and habits
-- **Animated onboarding tour** — 7-slide auto-advancing intro for new users (with Pomodoro and AI slides)
-- **Confetti burst** on task completion
-- **Animated desk scene** on landing page (GSAP)
-- **Drag-to-reorder** tasks on dashboard
-- **Recurring tasks** with automatic next-occurrence spawning
+### Polish
+
+⌘/Ctrl+K spotlight · bell notifications · confetti on completion · 7-slide onboarding tour · installable **PWA** with offline shell · GSAP-animated landing scene · mobile bottom-nav · WCAG-friendly tokens · SEO basics (sitemap, robots, dynamic icon/manifest).
 
 ---
 
-## 🛠 Tech Stack
+## Tech stack
 
-| Layer | Technology |
+| Layer | Choice |
 |---|---|
-| Framework | Next.js 16 (App Router) |
-| UI | React 19 |
-| Styling | Tailwind CSS v4 + custom CSS design system (`globals.css`) |
-| Animations | GSAP 3 |
-| AI | Google Gemini (`@google/generative-ai`) |
-| Auth | Supabase Auth — Google OAuth + email/password |
-| Calendar Sync | Google Calendar API (OAuth 2.0) |
-| Database | Supabase (PostgreSQL) |
-| Email | Resend |
-| WhatsApp | Twilio Business API |
-| OCR | Tesseract.js (runs in-browser) |
-| Voice | Web Speech API (browser-native) |
-| PWA | Custom service worker + Next.js `manifest.ts` |
+| Framework | **Next.js 16.2.4** · App Router · Turbopack |
+| Language | **TypeScript 5** · **React 19.2.4** |
+| Styling | **Tailwind CSS v4** + custom CSS design tokens |
+| Animations | **GSAP 3** |
+| Auth | **Supabase Auth** (Google OAuth + email/password) |
+| Database | **Supabase Postgres** · RLS via `auth.uid() = user_id` |
+| Storage | **Supabase Storage** (avatars, project documents) |
+| Background jobs | **Supabase `pg_cron` + `pg_net`** (hourly fan-out) |
+| Email | **Resend** |
+| WhatsApp / SMS | **Twilio Business API** |
+| Voice telephony | **Twilio Programmable Voice** (outbound + TwiML webhooks) |
+| Voice LLM | **Groq** · `llama-3.3-70b-versatile` (tool calling) |
+| AI task parsing | **Google Gemini 2.5 Flash** |
+| OCR | **Tesseract.js** (browser-side) |
+| Voice capture | **Web Speech API** (browser-native) |
 | State | React Context (`lib/store.tsx`) |
-| Language | TypeScript 5 |
-| Deployment | Vercel (Hobby plan) |
+| Hosting | **Vercel** (Hobby — no Pro required) |
 
 ---
 
-## 📁 Project Structure
+## Project layout
 
 ```
 slowdesk/
 ├── app/
-│   ├── page.tsx                                    # Dashboard
-│   ├── tasks/page.tsx                              # Tasks + OCR + Voice capture
-│   ├── projects/page.tsx
-│   ├── calendar/page.tsx
-│   ├── habits/page.tsx
-│   ├── notes/page.tsx
-│   ├── profile/page.tsx
+│   ├── page.tsx                    # Dashboard
+│   ├── (tasks|projects|calendar|habits|notes|profile)/page.tsx
 │   ├── auth/
-│   │   ├── callback/route.ts                       # Supabase OAuth callback
-│   │   └── google-calendar/callback/route.ts       # Google Calendar OAuth callback
+│   │   ├── callback/               # Supabase OAuth callback
+│   │   └── google-calendar/        # Google Calendar OAuth callback
 │   ├── api/
-│   │   ├── tasks/voice/route.ts                    # AI voice-to-task parsing (Gemini)
-│   │   ├── google-calendar/
-│   │   │   ├── connect/route.ts
-│   │   │   ├── sync/route.ts
-│   │   │   └── disconnect/route.ts
-│   │   ├── notifications/morning-digest/route.ts   # Daily cron (4am UTC)
-│   │   └── retrospective/route.ts                  # Weekly retrospective (Sundays)
-│   ├── layout.tsx                                  # Root layout + SW registration
-│   ├── manifest.ts                                 # PWA manifest
-│   ├── globals.css                                 # Design tokens + responsive CSS
-│   └── favicon.ico
+│   │   ├── google-calendar/        # connect · sync · disconnect
+│   │   ├── habits/insights/        # AI habit analysis
+│   │   ├── notes/                  # AI note helpers
+│   │   ├── notifications/morning-digest/   # hourly cron · email + WhatsApp fan-out
+│   │   ├── retrospective/          # weekly retrospective (Sundays)
+│   │   ├── tasks/
+│   │   │   ├── breakdown/          # AI task breakdown
+│   │   │   ├── parse-recurrence/   # NL recurrence parser
+│   │   │   └── voice/              # voice → task creation
+│   │   └── voice/
+│   │       ├── outbound/           # hourly cron · places Twilio calls
+│   │       └── twiml/{start,handle}/   # Twilio webhooks
+│   ├── manifest.ts                 # PWA manifest
+│   └── globals.css                 # design tokens + Tailwind v4
 ├── components/
-│   ├── AppShell.tsx              # Auth gate + main layout wrapper
-│   ├── AuthScreen.tsx            # Login / signup modal
-│   ├── CameraCapture.tsx         # Camera OCR for photo-to-task
-│   ├── Confetti.tsx              # Celebration animation
-│   ├── DeskScene.tsx             # Animated GSAP desk illustration (landing)
-│   ├── Icon.tsx                  # Icon component
-│   ├── LandingPage.tsx           # Marketing landing page
-│   ├── OnboardingTour.tsx        # Animated 7-slide onboarding tour
-│   ├── PomodoroTimer.tsx         # Full Pomodoro timer with GSAP animations
-│   ├── Providers.tsx             # AppProvider tree
-│   ├── ServiceWorkerRegistration.tsx  # PWA service worker registration
-│   ├── Sidebar.tsx               # Desktop sidebar + mobile bottom nav
-│   ├── TaskModal.tsx             # Add / edit task modal
-│   ├── TaskReview.tsx            # OCR result review before import
-│   ├── Topbar.tsx                # ⌘K search, notifications, user menu
-│   ├── TweaksPanel.tsx           # Theme / density settings drawer
-│   └── VoiceCapture.tsx          # Voice task capture with AI parsing
+│   ├── layout/                     # AppShell · Sidebar · Topbar · TweaksPanel · Providers
+│   ├── features/                   # PomodoroTimer · VoiceCapture · CameraCapture · OnboardingTour
+│   ├── marketing/                  # LandingPage · AuthScreen · DeskScene
+│   ├── tasks/                      # TaskModal · TaskReview
+│   └── ui/                         # Icon · Confetti
 ├── lib/
-│   ├── data.ts                   # Types, constants, helpers
-│   ├── emails/
-│   │   ├── morning-digest.ts     # Email + WhatsApp template helpers
-│   │   └── weekly-retrospective.ts
-│   ├── habit-analysis.ts         # Statistical habit analysis + Gemini context builder
-│   ├── ocr.ts                    # Tesseract.js wrapper
-│   ├── store.tsx                 # Global state (tasks, projects, settings, tour, etc.)
-│   ├── supabase/
-│   │   ├── client.ts
-│   │   ├── db.ts                 # Database helper functions (incl. Pomodoro sessions)
-│   │   └── server.ts
-│   ├── task-parser.ts            # Parse OCR text into structured tasks
-│   └── twilio.ts                 # Twilio WhatsApp Business helper
-├── public/
-│   ├── sw.js                     # PWA service worker
-│   ├── robots.txt
-│   └── sitemap.xml
-├── supabase/
-│   └── migrations/               # SQL migrations
-├── proxy.ts                      # Supabase session refresh middleware
-├── next.config.ts                # Security headers + Next.js config
-├── vercel.json                   # Cron job schedule
-└── .env.example                  # Required environment variables
+│   ├── data.ts · types.ts · store.tsx
+│   ├── task-parser.ts · recurrence.ts · ocr.ts · habit-analysis.ts
+│   ├── voice-agent.ts              # Groq tools, prompts, memory, evening summary
+│   ├── twilio.ts · twilio-voice.ts
+│   ├── emails/                     # morning-digest · weekly-retrospective
+│   ├── supabase/                   # client · server · db · tasks · habits · projects · notes · calendar · profile
+│   └── utils/                      # dates · tasks
+├── supabase/migrations/            # SQL — run in filename order
+├── public/                         # sw.js · robots.txt · sitemap.xml
+├── proxy.ts                        # Supabase session refresh on every request
+├── next.config.ts                  # security headers + compression
+└── vercel.json
 ```
 
 ---
 
-## 🚀 Getting Started
+## Getting started
 
-### 1. Clone and install
+### 1. Install
 
 ```bash
 git clone https://github.com/Saumyavi/Slow-Desk.git
@@ -187,83 +130,136 @@ cd Slow-Desk/slowdesk
 npm install
 ```
 
-### 2. Set up Supabase
+### 2. Supabase
 
-1. Create a project at [supabase.com](https://supabase.com)
-2. Run the migration in `supabase/migrations/` via the Supabase SQL editor
-3. Go to **Authentication → Providers → Google** and enable Google OAuth
-4. Set your **Site URL** and **Redirect URLs** in Authentication → URL Configuration
+1. Create a project at [supabase.com](https://supabase.com).
+2. Run every file in `supabase/migrations/` **in filename order** via the SQL editor.
+3. Authentication → URL Configuration:
+   - Site URL: `https://your-domain.vercel.app`
+   - Redirect URLs: `https://your-domain.vercel.app/auth/callback`
+4. Storage buckets (`avatars`, `project-documents`) are created by `20260511_storage_setup.sql`.
 
-### 3. Configure environment variables
+### 3. Google OAuth (two separate clients)
+
+**Supabase sign-in** — Google Cloud Console → Credentials → OAuth client. Redirect URI: `https://<project>.supabase.co/auth/v1/callback`. Paste Client ID + Secret into Supabase → Authentication → Providers → Google.
+
+**Google Calendar sync** — enable the Calendar API in the same project. Redirect URIs:
+```
+http://localhost:3000/auth/google-calendar/callback
+https://your-domain.vercel.app/auth/google-calendar/callback
+```
+Set `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`.
+
+### 4. Twilio (optional — WhatsApp + voice)
+
+Grab Account SID + Auth Token. For WhatsApp, join the sandbox or provision a sender (`TWILIO_WHATSAPP_FROM`). For voice, buy a number (`TWILIO_PHONE_NUMBER`) and point its **Voice webhook** at `https://your-domain.vercel.app/api/voice/twiml/handle` (POST).
+
+### 5. Groq (voice agent brain)
+
+Get a key at [console.groq.com](https://console.groq.com) → `GROQ_API_KEY`.
+
+### 6. Environment variables
 
 ```bash
 cp .env.example .env.local
 ```
 
-```env
-# Supabase
-NEXT_PUBLIC_SUPABASE_URL=https://<project>.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon key>
-SUPABASE_SERVICE_ROLE_KEY=<service role key>
+| Variable | Required | Purpose |
+|---|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | ✅ | Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | ✅ | Supabase anon key |
+| `SUPABASE_SERVICE_ROLE_KEY` | ✅ | Server-only (used by cron routes) |
+| `CRON_SECRET` | ✅ | `openssl rand -hex 32` — gates cron endpoints |
+| `RESEND_API_KEY` | ✅ | Email delivery |
+| `RESEND_FROM_EMAIL` | — | Custom sender (e.g. `SlowDesk <hi@yourdomain.com>`) |
+| `GOOGLE_CLIENT_ID` / `_SECRET` | — | Google Calendar sync |
+| `GEMINI_API_KEY` | — | AI task parsing, note helpers, habit insights |
+| `GROQ_API_KEY` | — | Voice agent LLM |
+| `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` | — | WhatsApp + voice |
+| `TWILIO_WHATSAPP_FROM` | — | e.g. `whatsapp:+14155238886` |
+| `TWILIO_PHONE_NUMBER` | — | E.164 number for outbound voice calls |
+| `NEXT_PUBLIC_SITE_URL` | — | Public URL — needed for Twilio webhooks |
 
-# AI (Google Gemini)
-GOOGLE_GENERATIVE_AI_API_KEY=<from aistudio.google.com>
-
-# Resend (email delivery)
-RESEND_API_KEY=<from resend.com>
-
-# Cron authentication
-CRON_SECRET=<run: openssl rand -hex 32>
-
-# Google Calendar sync (optional)
-GOOGLE_CLIENT_ID=<from Google Cloud Console>
-GOOGLE_CLIENT_SECRET=<from Google Cloud Console>
-
-# Twilio WhatsApp (optional)
-TWILIO_ACCOUNT_SID=
-TWILIO_AUTH_TOKEN=
-TWILIO_WHATSAPP_FROM=whatsapp:+14155238886
-```
-
-### 4. Run locally
+### 7. Run
 
 ```bash
-npm run dev
+npm run dev          # http://localhost:3000
+npx next dev -p 3001 # alternate port
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
-
 ---
 
-## 🔄 Cron Jobs
-
-Runs on Vercel Hobby (1 cron limit). Single daily cron handles both notifications:
-
-| Schedule | What runs |
-|---|---|
-| `0 4 * * *` (4am UTC daily) | Morning digest — sends email/WhatsApp to opted-in users |
-| Every Sunday (internal) | Weekly retrospective — triggered inside the daily cron on Sundays |
-
----
-
-## 📋 Scripts
+## Scripts
 
 ```bash
-npm run dev      # Start dev server (http://localhost:3000)
-npm run build    # Production build
-npm run start    # Serve production build locally
-npm run lint     # Run ESLint
+npm run dev     # dev server (Turbopack)
+npm run build   # production build
+npm run start   # serve production build
+npm run lint    # ESLint
+
+node scripts/preview-email.mjs   # preview email templates locally
 ```
 
 ---
 
-## 🗺 Roadmap
+## Database migrations
 
-- [ ] AI Daily Digest — Gemini-powered morning summary with top 3 task suggestions
-- [ ] Focus Mode — full-screen minimal view during Pomodoro sessions  
-- [ ] Weekly Review Page — visual charts for completions, habits, and Pomodoro history
-- [ ] Task → Habit linking — completing a task auto-logs the linked habit
-- [ ] WhatsApp Morning Briefing — daily tasks + streak summary via Twilio cron
+`supabase/migrations/` is applied **in filename order** via the Supabase SQL editor (no CLI runner is wired up). Highlights:
+
+- `20260506_notification_preferences.sql` — toggles + per-user `notification_time` / `notification_timezone`
+- `20260507_google_calendar*.sql` — Google tokens + `calendar_events`
+- `20260507_pomodoro_sessions.sql` — Pomodoro log
+- `20260507_subtasks.sql` · `20260511_subhabits.sql` — sub-items
+- `20260508_avatar_url.sql` · `20260511_storage_setup.sql` — uploads + RLS
+- `20260508_recurring_tasks.sql` · `20260511_task_description.sql` · `20260512_task_due_date.sql` — task model
+- `20260511_project_documents.sql` — per-project documents
+- `20260514_voice_agent.sql` · `20260515_voice_memory.sql` · `20260515_voice_sessions_habits_memory.sql` — voice sessions + memory
+- `20260518_voice_agent_calendar_times.sql` — per-user evening time + calendar/project snapshots on `voice_sessions`
+- `20260518_morning_digest_hourly.sql` · `20260518_evening_cron_hourly.sql` — pg_cron jobs (edit placeholders before running)
+
+---
+
+## Cron jobs
+
+Both fan-out crons run hourly via **Supabase `pg_cron` + `pg_net`** — no Vercel Pro plan required. The Next.js routes then filter users by their chosen local hour using `Intl.DateTimeFormat` against `notification_timezone`.
+
+| Schedule | Endpoint | What it does |
+|---|---|---|
+| `0 * * * *` | `/api/notifications/morning-digest` | Email + WhatsApp digest for users whose local hour matches `notification_time`. Sundays at 04:00 UTC also dispatches the weekly retrospective. |
+| `0 * * * *` | `/api/voice/outbound` | Places Twilio calls for users whose local hour matches their morning or evening voice-call time. |
+
+Requests are authenticated with `Authorization: Bearer <CRON_SECRET>`. `vercel.json` is intentionally empty — Hobby plans only allow daily crons, which is too coarse for per-user scheduling.
+
+---
+
+## Security
+
+- All user-owned tables use **Row Level Security** keyed on `auth.uid() = user_id`.
+- Cron endpoints reject requests without the `CRON_SECRET` bearer token.
+- `next.config.ts` sets CSP, X-Frame-Options, Referrer-Policy headers and enables compression.
+- `SUPABASE_SERVICE_ROLE_KEY` is **server-only** — never imported into client code.
+- Twilio webhooks should be restricted to your production domain.
+- Keep `.env*.local` out of git; rotate any key that has been committed or shared.
+
+---
+
+## Deployment
+
+```bash
+npx vercel --prod
+```
+
+Set every env var in **Vercel → Settings → Environment Variables** before deploying. Make sure `NEXT_PUBLIC_SITE_URL` matches your production domain so Twilio webhooks resolve. After deploying, edit the placeholders in the two pg_cron migrations (`YOUR_VERCEL_URL`, `YOUR_CRON_SECRET`) and run them in the Supabase SQL editor to activate the hourly jobs.
+
+---
+
+## Roadmap
+
+- [ ] Full-screen Focus Mode during Pomodoro sessions
+- [ ] Weekly Review page with completion / habit / Pomodoro charts
+- [ ] Task → Habit linking (completing a task auto-logs the linked habit)
+- [ ] Voice agent: project-document Q&A on calls
+- [ ] iOS Shortcuts integration for one-tap task capture
 
 ---
 
