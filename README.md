@@ -2,7 +2,7 @@
 
 A calm, personal productivity workspace — tasks, projects, habits, notes, calendar, and an AI **voice agent** that calls you twice a day to plan and reflect.
 
-**Live:** [slowdesk.app](slow-desk.vercel.app)
+**Live:** [slowdesk.app](https://slow-desk.vercel.app/)
 
 ---
 
