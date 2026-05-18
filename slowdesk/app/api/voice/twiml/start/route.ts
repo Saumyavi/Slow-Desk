@@ -1,6 +1,12 @@
 import { NextRequest } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { generateEveningSummary, VoiceHabit, CallMemoryEntry } from '@/lib/voice-agent';
+import {
+  generateEveningSummary,
+  VoiceHabit,
+  CallMemoryEntry,
+  VoiceCalendarEvent,
+  VoiceProjectProgress,
+} from '@/lib/voice-agent';
 
 export const runtime = 'nodejs';
 
@@ -52,6 +58,83 @@ async function fetchHabitsForUser(supabase: any, userId: string, todayStr: strin
   }));
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function fetchTodaysCalendarEvents(supabase: any, userId: string, today: Date): Promise<VoiceCalendarEvent[]> {
+  const { data } = await supabase
+    .from('calendar_events')
+    .select('title, time, end_time, source')
+    .eq('user_id', userId)
+    .eq('year',  today.getFullYear())
+    .eq('month', today.getMonth() + 1)
+    .eq('day',   today.getDate())
+    .order('time', { ascending: true });
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (data || []).map((e: any) => ({
+    time:    e.time ?? '',
+    endTime: e.end_time ?? undefined,
+    title:   e.title ?? '',
+    source:  (e.source ?? 'local') as 'local' | 'google',
+  }));
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function fetchProjectProgress(supabase: any, userId: string, todayStr: string): Promise<VoiceProjectProgress[]> {
+  // 7-day horizon for "this week"
+  const weekEnd = new Date(todayStr);
+  weekEnd.setDate(weekEnd.getDate() + 7);
+  const weekEndStr = weekEnd.toISOString().slice(0, 10);
+
+  const { data: projects } = await supabase
+    .from('projects')
+    .select('id, name')
+    .eq('user_id', userId);
+
+  if (!projects?.length) return [];
+
+  const { data: tasks } = await supabase
+    .from('tasks')
+    .select('project_id, done, due, due_date')
+    .eq('user_id', userId);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const byProject = new Map<string, any[]>();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for (const t of tasks ?? []) {
+    if (!t.project_id) continue;
+    const list = byProject.get(t.project_id) ?? [];
+    list.push(t);
+    byProject.set(t.project_id, list);
+  }
+
+  const result: VoiceProjectProgress[] = [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for (const p of projects as any[]) {
+    const ts = byProject.get(p.id) ?? [];
+    if (ts.length === 0) continue;
+    const done = ts.filter(t => t.done).length;
+    const percent = Math.round((done / ts.length) * 100);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const open = ts.filter((t: any) => !t.done);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const openThisWeek = open.filter((t: any) =>
+      t.due_date
+        ? t.due_date <= weekEndStr
+        : t.due === 'today' || t.due === 'overdue' || t.due === 'this week' || t.due === 'tomorrow',
+    ).length;
+    result.push({
+      name: p.name,
+      percent,
+      remaining: open.length,
+      remainingThisWeek: openThisWeek,
+    });
+  }
+
+  // Highest activity first
+  result.sort((a, b) => b.remainingThisWeek - a.remainingThisWeek || b.remaining - a.remaining);
+  return result.slice(0, 5);
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const userId  = searchParams.get('userId');
@@ -85,9 +168,11 @@ export async function GET(request: NextRequest) {
   handleUrl.search   = '';
 
   const habits = await fetchHabitsForUser(supabase, userId, todayStr);
+  const calendarEvents = await fetchTodaysCalendarEvents(supabase, userId, today);
+  const projectProgress = await fetchProjectProgress(supabase, userId, todayStr);
 
   if (type === 'evening') {
-    return handleEveningStart(supabase, userId, userName, todayStr, callSid, handleUrl.toString(), habits, memory);
+    return handleEveningStart(supabase, userId, userName, todayStr, callSid, handleUrl.toString(), habits, memory, calendarEvents, projectProgress);
   }
 
   // ── Morning flow ──────────────────────────────────────────────
@@ -111,6 +196,8 @@ export async function GET(request: NextRequest) {
     tasks:    tasks.map((t: { id: string; title: string; priority: string; due: string; done: boolean }) => ({ id: t.id, title: t.title, priority: t.priority, due: t.due, done: t.done })),
     habits,
     memory,
+    calendar_events:  calendarEvents,
+    project_progress: projectProgress,
     status:   'active',
   });
   if (sessionError) console.error('voice_sessions insert failed:', sessionError.message);
@@ -135,7 +222,12 @@ export async function GET(request: NextRequest) {
     ? ` You have ${pendingHabits.length} habit${pendingHabits.length !== 1 ? 's' : ''} pending: ${pendingHabits.map(h => h.name).join(', ')}.`
     : habits.length > 0 ? ` All ${habits.length} habits already done — great start!` : '';
 
-  const greeting = esc(`Good morning, ${userName}! Today is ${dateLabel}. ${taskSpeech}${habitSpeech}`);
+  // Surface today's first few calendar events (keeps the greeting short)
+  const eventSpeech = calendarEvents.length > 0
+    ? ` On your calendar: ${calendarEvents.slice(0, 3).map(e => `${e.title} at ${e.time}`).join('; ')}${calendarEvents.length > 3 ? `, plus ${calendarEvents.length - 3} more` : ''}.`
+    : '';
+
+  const greeting = esc(`Good morning, ${userName}! Today is ${dateLabel}. ${taskSpeech}${habitSpeech}${eventSpeech}`);
   const prompt   = esc(`Would you like to make any changes, or shall I let you get started?`);
   const fallback = esc(`I didn't catch that. Have a wonderful day, ${userName}!`);
 
@@ -152,6 +244,8 @@ async function handleEveningStart(
   handleUrl: string,
   habits: VoiceHabit[],
   memory: CallMemoryEntry[],
+  calendarEvents: VoiceCalendarEvent[],
+  projectProgress: VoiceProjectProgress[],
 ) {
   const { data: completedRows } = await supabase
     .from('tasks')
@@ -176,7 +270,7 @@ async function handleEveningStart(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const pendingTasks   = pendingToday.map((t: any) => ({ id: t.id, title: t.title, priority: t.priority, due: t.due, done: false }));
 
-  const summary = await generateEveningSummary(userName, completedTasks, pendingTasks, memory);
+  const summary = await generateEveningSummary(userName, completedTasks, pendingTasks, memory, projectProgress);
 
   const { error: sessionError } = await supabase.from('voice_sessions').insert({
     call_sid: callSid,
@@ -186,6 +280,8 @@ async function handleEveningStart(
     tasks:    pendingTasks,
     habits,
     memory,
+    calendar_events:  calendarEvents,
+    project_progress: projectProgress,
     status:   'active',
   });
   if (sessionError) console.error('voice_sessions insert failed:', sessionError.message);

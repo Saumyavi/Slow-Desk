@@ -72,6 +72,8 @@ export async function POST(request: NextRequest) {
         tasks:    session.tasks ?? [],
         habits:   session.habits ?? [],
         memory:   session.memory ?? [],
+        calendarEvents:  session.calendar_events  ?? [],
+        projectProgress: session.project_progress ?? [],
       },
       speechResult,
     );

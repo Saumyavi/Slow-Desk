@@ -141,6 +141,7 @@ export default function ProfilePage() {
   const [notifCallEveningEnabled,  setNotifCallEveningEnabled]  = useState(false);
   const [notifPhone,               setNotifPhone]               = useState('');
   const [notifTime,                setNotifTime]                = useState('08:00');
+  const [notifCallEveningTime,     setNotifCallEveningTime]     = useState('19:00');
   const [notifTimezone,            setNotifTimezone]            = useState('UTC');
   const [notifSaved,               setNotifSaved]               = useState(false);
   const [notifSaving,              setNotifSaving]              = useState(false);
@@ -250,7 +251,7 @@ export default function ProfilePage() {
       if (!data.user) return;
       const { data: profile } = await supabase
         .from('user_profiles')
-        .select('notification_email_enabled, notification_whatsapp_enabled, notification_call_enabled, notification_call_evening_enabled, notification_phone, notification_time, notification_timezone, avatar_url')
+        .select('notification_email_enabled, notification_whatsapp_enabled, notification_call_enabled, notification_call_evening_enabled, notification_phone, notification_time, notification_call_evening_time, notification_timezone, avatar_url')
         .eq('id', data.user.id)
         .single();
       if (!profile) return;
@@ -260,6 +261,7 @@ export default function ProfilePage() {
       setNotifCallEveningEnabled(profile.notification_call_evening_enabled ?? false);
       setNotifPhone(profile.notification_phone ?? '');
       setNotifTime(profile.notification_time ?? '08:00');
+      setNotifCallEveningTime(profile.notification_call_evening_time ?? '19:00');
       setNotifTimezone(profile.notification_timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'UTC');
       if (profile.avatar_url) setAvatarUrl(profile.avatar_url);
     });
@@ -279,6 +281,7 @@ export default function ProfilePage() {
         notification_call_evening_enabled: notifCallEveningEnabled,
         notification_phone:                notifPhone || null,
         notification_time:                 notifTime,
+        notification_call_evening_time:    notifCallEveningTime,
         notification_timezone:             notifTimezone,
         updated_at:                        new Date().toISOString(),
       }).eq('id', data.user.id);
@@ -863,18 +866,66 @@ export default function ProfilePage() {
           </div>
 
 
-          {/* Delivery info */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', borderRadius: 12, background: 'var(--bg-sunk)', border: '1px solid var(--line-soft)', marginBottom: 22 }}>
-            <span style={{ width: 42, height: 42, borderRadius: 10, background: 'linear-gradient(135deg, var(--butter-soft), var(--terracotta-soft))', display: 'grid', placeItems: 'center', flexShrink: 0, fontSize: 20 }}>☀</span>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 13, color: 'var(--ink-soft)' }}>
-                Delivered every morning at{' '}
-                <span style={{ fontFamily: 'var(--font-display)', fontSize: 17, fontStyle: 'italic', color: 'var(--ink)' }}>9:30 am IST</span>
+          {/* Delivery schedule — only when a voice call is enabled */}
+          {(notifCallEnabled || notifCallEveningEnabled) && (
+            <>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: notifCallEnabled && notifCallEveningEnabled ? '1fr 1fr 1fr' : '1fr 1fr',
+                gap: 10,
+                marginBottom: 22,
+              }}>
+                {notifCallEnabled && (
+                  <div>
+                    <label style={{ fontFamily: 'var(--font-mono)', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'var(--ink-faint)', display: 'block', marginBottom: 6 }}>Morning time</label>
+                    <input
+                      type="time"
+                      value={notifTime}
+                      onChange={e => setNotifTime(e.target.value || '08:00')}
+                      style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--ink)', fontSize: 14, fontFamily: 'var(--font-mono)', outline: 'none', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                )}
+                {notifCallEveningEnabled && (
+                  <div>
+                    <label style={{ fontFamily: 'var(--font-mono)', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'var(--ink-faint)', display: 'block', marginBottom: 6 }}>Evening time</label>
+                    <input
+                      type="time"
+                      value={notifCallEveningTime}
+                      onChange={e => setNotifCallEveningTime(e.target.value || '19:00')}
+                      style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--ink)', fontSize: 14, fontFamily: 'var(--font-mono)', outline: 'none', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                )}
+                <div>
+                  <label style={{ fontFamily: 'var(--font-mono)', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'var(--ink-faint)', display: 'block', marginBottom: 6 }}>Timezone</label>
+                  <input
+                    list="slowdesk-timezones"
+                    value={notifTimezone}
+                    onChange={e => setNotifTimezone(e.target.value)}
+                    placeholder="e.g. Asia/Kolkata"
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--ink)', fontSize: 13, fontFamily: 'var(--font-mono)', outline: 'none', boxSizing: 'border-box' }}
+                  />
+                  <datalist id="slowdesk-timezones">
+                    {['UTC','Asia/Kolkata','Asia/Singapore','Asia/Tokyo','Asia/Dubai','Europe/London','Europe/Berlin','Europe/Paris','America/New_York','America/Chicago','America/Denver','America/Los_Angeles','Australia/Sydney','Pacific/Auckland'].map(tz => (
+                      <option key={tz} value={tz} />
+                    ))}
+                  </datalist>
+                </div>
               </div>
-              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'var(--ink-faint)', marginTop: 2 }}>custom timing · coming soon</div>
-            </div>
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'var(--accent)' }}>next: tomorrow</span>
-          </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 16px', borderRadius: 12, background: 'var(--bg-sunk)', border: '1px solid var(--line-soft)', marginBottom: 22, fontSize: 12.5, color: 'var(--ink-soft)' }}>
+                <span style={{ width: 32, height: 32, borderRadius: 8, background: 'linear-gradient(135deg, var(--butter-soft), var(--terracotta-soft))', display: 'grid', placeItems: 'center', flexShrink: 0, fontSize: 16 }}>☀</span>
+                <span>
+                  {notifCallEnabled && (<>Morning ritual at <strong style={{ color: 'var(--ink)' }}>{notifTime}</strong></>)}
+                  {notifCallEnabled && notifCallEveningEnabled && ', '}
+                  {notifCallEveningEnabled && (<>evening call at <strong style={{ color: 'var(--ink)' }}>{notifCallEveningTime}</strong></>)}
+                  {' '}in <strong style={{ color: 'var(--ink)' }}>{notifTimezone}</strong>.
+                  <span style={{ display: 'block', fontFamily: 'var(--font-mono)', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'var(--ink-faint)', marginTop: 2 }}>matched to the nearest hour</span>
+                </span>
+              </div>
+            </>
+          )}
 
           {/* Postcard preview */}
           <details style={{ marginBottom: 20 }}>

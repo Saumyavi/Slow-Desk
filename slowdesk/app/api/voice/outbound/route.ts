@@ -4,6 +4,32 @@ import { placeCall } from '@/lib/twilio-voice';
 
 export const runtime = 'nodejs';
 
+/**
+ * Returns the user's local hour (0-23) right now in the given IANA timezone.
+ * Falls back to UTC if the timezone string is invalid.
+ */
+function hourInTimezone(now: Date, tz: string): number {
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz || 'UTC',
+      hour: '2-digit',
+      hour12: false,
+    }).formatToParts(now);
+    const hh = parts.find(p => p.type === 'hour')?.value ?? '0';
+    const n = parseInt(hh, 10);
+    return Number.isFinite(n) ? n % 24 : now.getUTCHours();
+  } catch {
+    return now.getUTCHours();
+  }
+}
+
+function matchesScheduledHour(scheduled: string | null | undefined, tz: string | null | undefined, now: Date): boolean {
+  if (!scheduled) return false;
+  const targetHour = parseInt(scheduled.split(':')[0] ?? '', 10);
+  if (!Number.isFinite(targetHour)) return false;
+  return hourInTimezone(now, tz || 'UTC') === targetHour;
+}
+
 export async function GET(request: NextRequest) {
   return handleOutbound(request, 'morning');
 }
@@ -26,19 +52,29 @@ async function handleOutbound(request: NextRequest, type: 'morning' | 'evening')
     { auth: { autoRefreshToken: false, persistSession: false } },
   );
 
-  const column = type === 'morning' ? 'notification_call_enabled' : 'notification_call_evening_enabled';
+  const enabledColumn = type === 'morning' ? 'notification_call_enabled' : 'notification_call_evening_enabled';
+  const timeColumn    = type === 'morning' ? 'notification_time'         : 'notification_call_evening_time';
+
   const { data: profiles, error } = await supabase
     .from('user_profiles')
-    .select('id, notification_phone')
-    .eq(column, true);
+    .select(`id, notification_phone, notification_timezone, ${enabledColumn}, ${timeColumn}`)
+    .eq(enabledColumn, true);
 
   if (error) {
     return NextResponse.json({ error: 'Failed to fetch profiles' }, { status: 500 });
   }
 
-  const eligible = (profiles || []).filter(p => p.notification_phone);
+  const now = new Date();
+
+  // Only call users whose chosen local hour matches the current local hour.
+  // The cron must run hourly for this to be precise.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const eligible = (profiles || []).filter((p: any) =>
+    p.notification_phone && matchesScheduledHour(p[timeColumn], p.notification_timezone, now),
+  );
+
   if (eligible.length === 0) {
-    return NextResponse.json({ success: true, type, sent: 0, message: 'No users opted in' });
+    return NextResponse.json({ success: true, type, sent: 0, message: 'No users opted in for this hour' });
   }
 
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || new URL(request.url).origin;

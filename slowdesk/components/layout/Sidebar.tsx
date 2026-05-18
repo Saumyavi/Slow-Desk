@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { gsap } from 'gsap';
 import Icon, { IconName } from '@/components/ui/Icon';
 import { useApp } from '@/lib/store';
@@ -31,24 +31,6 @@ export default function Sidebar() {
   const { sidebar, user, projects, tasks } = useApp();
   const isIcon = sidebar === 'icon';
   const navRef = useRef<HTMLElement>(null);
-  const [callState, setCallState] = useState<'idle' | 'calling' | 'done' | 'error'>('idle');
-
-  async function handleCallNow() {
-    setCallState('calling');
-    try {
-      const res = await fetch('/api/voice/request-call', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'morning' }) });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        console.error('Call failed:', data.error);
-        setCallState('error');
-      } else {
-        setCallState('done');
-      }
-    } catch {
-      setCallState('error');
-    }
-    setTimeout(() => setCallState('idle'), 4000);
-  }
 
   useEffect(() => {
     if (!navRef.current) return;
@@ -127,24 +109,6 @@ export default function Sidebar() {
           </div>
 
           <div style={{ flex: 1 }} />
-          <button
-            onClick={handleCallNow}
-            disabled={callState === 'calling'}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-              padding: '9px 12px', borderRadius: 8, border: '1px solid var(--line)',
-              background: callState === 'done' ? 'var(--accent)' : callState === 'error' ? 'var(--bg-sunk)' : 'transparent',
-              color: callState === 'done' ? '#fff' : callState === 'error' ? 'var(--ink-faint)' : 'var(--ink)',
-              cursor: callState === 'calling' ? 'not-allowed' : 'pointer',
-              fontSize: 12, fontFamily: 'var(--font-mono)', opacity: callState === 'calling' ? 0.6 : 1,
-              transition: 'background 0.2s, color 0.2s',
-            }}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-              <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.63A2 2 0 012 .93h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L6.09 8.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/>
-            </svg>
-            {callState === 'calling' ? 'Calling…' : callState === 'done' ? 'Call placed!' : callState === 'error' ? 'Failed — retry?' : 'Call me now'}
-          </button>
           <div className="card" style={{ marginTop: 8, background: 'var(--bg-sunk)', border: '1px dashed var(--line)', textAlign: 'center', padding: 14 }}>
             <div className="serif" style={{ fontSize: 16, marginBottom: 4 }}>Take a breath.</div>
             <div style={{ fontSize: 11, color: 'var(--ink-faint)', fontFamily: 'var(--font-mono)' }}>4 · 7 · 8 method</div>
